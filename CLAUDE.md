@@ -59,9 +59,11 @@ The session is not the unit of work — the log is. During any multi-step discov
 
 Semantic routing library for AI inference backends. Extracts intelligent routing from `ov_server` into a standalone package. Routes each request to the best backend/model via signal detection (fast path, O(1)) then embedding classification (slow path, cosine similarity). No GPU, no OpenVINO dependency in the library itself.
 
-**Three implementation phases:**
-1. Extract routing logic into `infergate` package
-2. Reconnect `ov_server` to use `infergate` (production proof — forces every abstraction leak to surface)
+**Origin:** Logic extracted from `ov_server` (at `/opt/ov_server`). That codebase is the historical source only — infergate has no runtime dependency on it and no knowledge of its internals.
+
+**Phases owned by this project:**
+1. ~~Extract routing logic into `infergate` package~~ ✓ done (commit ceaf821)
+2. ov_server reconnection — **out of scope here**; handled in a separate ov_server session using infergate as a PyPI dependency
 3. Demo gateway: thin FastAPI + Ollama + OVH backends
 
 ---
