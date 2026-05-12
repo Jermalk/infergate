@@ -6,6 +6,8 @@ prefer-loaded logic, context overflow, keyword directives, cloud directive.
 import numpy as np
 import pytest
 
+from conftest import MockBackend
+
 from infergate.config import ModelDescriptor
 from infergate.config import RouterConfig
 from infergate.config import RouterSettings
@@ -183,9 +185,13 @@ class TestDetectSignal:
         s = _settings(long_context_tokens=100, keywords={"code": ["fix this"]})
         assert detect_signal(req, s) == "document"
 
-    def test_hashtag_directive_highest_priority(self):
+    def test_hashtag_directive_not_handled_by_detect_signal(self):
+        # detect_signal covers images/tools/long-context/keywords only.
+        # Directive priority (#code, #general …) is enforced by Router.decide()
+        # before detect_signal is called, so detect_signal sees the image and
+        # correctly returns "vision" here.
         req = _make_req([_image_msg()] + [_user("#general")])
-        assert detect_signal(req, _settings()) == "general"
+        assert detect_signal(req, _settings()) == "vision"
 
     def test_multi_turn_long_context_cumulative(self):
         msgs = [_user("word " * 60), _assistant("ok"), _user("word " * 60)]
@@ -357,7 +363,6 @@ class TestSelectModel:
         assert prefer_loaded is True
 
     def test_unavailable_model_skipped(self, basic_config, remote_backend):
-        from conftest import MockBackend
         no_models = MockBackend("loc", models=[], is_local=True)
         backends = {"loc": no_models, "ovh": remote_backend}
         bname, mid, _ = select_model("code", basic_config, backends, "local", "fastest")
@@ -375,7 +380,6 @@ class TestSelectModel:
         assert bname == "ovh"
 
     def test_ctx_limit_filters_model(self, remote_backend):
-        from conftest import MockBackend
         # backend with small-llm but ctx_limit=100 and we send 200 tokens
         tiny_backend = MockBackend("loc", models=["small-llm"], is_local=True)
         config = RouterConfig(
@@ -457,6 +461,19 @@ class TestRouterDecide:
         decision = await router.decide(req)
         assert decision.task_class == "general"
         assert decision.strategy == RouteStrategy.FALLBACK
+
+    @pytest.mark.asyncio
+    async def test_directive_beats_vision_signal(self, basic_config, local_backend, remote_backend, mock_provider):
+        # Router checks task_class_directive before detect_signal, so a #general
+        # tag overrides the image signal even though detect_signal returns "vision".
+        backends = {"loc": local_backend, "ovh": remote_backend}
+        router = Router(basic_config, backends, mock_provider)
+        await router.load_embeddings()
+
+        req = InferRequest(messages=[_image_msg()] + [_user("#general")])
+        decision = await router.decide(req)
+        assert decision.task_class == "general"
+        assert decision.strategy == RouteStrategy.KEYWORD
 
     @pytest.mark.asyncio
     async def test_decision_has_all_fields(self, basic_config, local_backend, mock_provider):

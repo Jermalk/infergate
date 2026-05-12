@@ -15,6 +15,7 @@ from infergate.selector import select_model
 from infergate.signals import detect_signal
 from infergate.signals import has_cloud_directive
 from infergate.signals import task_class_directive
+from infergate.signals import text_content
 from infergate.types import InferRequest
 from infergate.types import RouteDecision
 from infergate.types import RouteStrategy
@@ -66,14 +67,18 @@ class Router:
         """Main routing entry point. Returns RouteDecision without executing the request.
 
         Pipeline:
-          1. Signal detection   — O(1)
-          2. Embedding routing  — async, provider handles executor
-          3. Scope resolution   — per-class override > cloud directive > global
-          4. Model selection    — prefer loaded → tier → complexity → context check
+          1. Directive check  — #code / #document / #general hashtag → RouteStrategy.KEYWORD
+          2. Signal detection — image / tools / long-context / keyword → RouteStrategy.SIGNAL
+          3. Embedding routing — cosine similarity against task-class centroids
+          4. Scope resolution — per-class override > #ovh/#cloud directive > global scope
+          5. Model selection  — prefer loaded → tier → complexity → context limit check
         """
         settings = self._config.router
 
-        # ── Stage 1: signal detection ──────────────────────────────────────
+        # ── Stage 1 & 2: signal detection ─────────────────────────────────────
+        # Directive check is separated from detect_signal so we can assign the
+        # correct RouteStrategy (KEYWORD vs SIGNAL) without detect_signal needing
+        # to know about strategy types.
         directive = task_class_directive(request.messages)
         if directive:
             task_class: str | None = directive
@@ -85,10 +90,13 @@ class Router:
         confidence = 1.0
         embedding: list[float] | None = None
 
-        # ── Stage 2: embedding classification (slow path) ─────────────────
+        # ── Stage 3: embedding classification (slow path) ─────────────────────
         if task_class is None:
             if self._provider and self._centroids:
-                query = self._extract_query(request)
+                query = next(
+                    (text_content(m) for m in reversed(request.messages) if m.get("role") == "user"),
+                    "",
+                )
                 task_class, confidence, embedding = await route_by_embedding(
                     query,
                     self._centroids,
@@ -105,7 +113,7 @@ class Router:
                 confidence = 0.0
                 strategy = RouteStrategy.FALLBACK
 
-        # ── Stage 3: scope resolution ─────────────────────────────────────
+        # ── Stage 4: scope resolution ──────────────────────────────────────────
         cls_cfg = self._config.task_classes.get(task_class)
         if cls_cfg and cls_cfg.scope_override:
             effective_scope = cls_cfg.scope_override
@@ -114,13 +122,14 @@ class Router:
         else:
             effective_scope = self._config.provider_scope
 
-        # ── Stage 4: model selection ──────────────────────────────────────
+        # ── Stage 5: model selection ───────────────────────────────────────────
         profile = self._config.profiles.get(self._config.active_profile, {})
         profile_pref = profile.get("model_preference", "balanced")
 
+        # Token estimate uses the same text_content() as signal detection for
+        # consistency; multimodal messages (list content) are handled correctly.
         total_tokens = sum(
-            len(m.get("content", "") if isinstance(m.get("content"), str) else "")
-            for m in request.messages
+            len(text_content(m)) for m in request.messages
         ) // 4
 
         backend_name, model_id, prefer_loaded = select_model(
@@ -142,16 +151,3 @@ class Router:
             prefer_loaded=prefer_loaded,
             embedding=embedding,
         )
-
-    def _extract_query(self, request: InferRequest) -> str:
-        for m in reversed(request.messages):
-            if m.get("role") == "user":
-                content = m.get("content", "")
-                if isinstance(content, str):
-                    return content
-                if isinstance(content, list):
-                    return " ".join(
-                        p.get("text", "") for p in content
-                        if isinstance(p, dict) and p.get("type") == "text"
-                    )
-        return ""

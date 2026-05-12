@@ -76,7 +76,7 @@ class SentenceTransformerProvider:
 
     def __init__(self, model_name: str = "intfloat/multilingual-e5-large") -> None:
         self._model_name = model_name
-        self._model = None
+        self._model: "SentenceTransformer | None" = None  # lazy-loaded on first encode
 
     def _load(self) -> None:
         if self._model is None:

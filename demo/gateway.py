@@ -36,6 +36,7 @@ from infergate import RouterConfig
 from infergate.backends.ollama import OllamaBackend
 from infergate.backends.openai_compat import OpenAICompatBackend
 from infergate.embeddings import SentenceTransformerProvider
+from infergate.protocols import Backend
 
 _SCRIPT_DIR = Path(__file__).parent
 
@@ -71,12 +72,13 @@ settings = Settings()
 logging.basicConfig(
     level=settings.log_level.upper(),
     format="%(asctime)s %(levelname)-8s %(name)s — %(message)s",
+    force=True,  # override any root-logger config already applied by the host process
 )
 log = logging.getLogger("infergate.demo")
 
 # ── globals populated at startup ──────────────────────────────────────────────
 router: Router | None = None
-backends: dict[str, OllamaBackend | OpenAICompatBackend] = {}
+backends: dict[str, Backend] = {}
 
 
 @asynccontextmanager
@@ -151,6 +153,7 @@ async def chat_completions(request: Request) -> JSONResponse:
         tools=body.get("tools"),
     )
 
+    assert router is not None, "router not initialised — lifespan startup failed"
     decision = await router.decide(infer_req)
     log.info(
         "[route] task=%s strategy=%s backend=%s model=%s confidence=%.2f",

@@ -7,51 +7,40 @@ import re
 from infergate.config import ModelDescriptor
 from infergate.config import RouterConfig
 from infergate.protocols import Backend
+from infergate.signals import text_content
 
 
 log = logging.getLogger("infergate")
 
-COMPLEXITY_SIGNALS: tuple[str, ...] = (
+_COMPLEXITY_SIGNALS: tuple[str, ...] = (
     "analyze", "compare", "explain in detail", "evaluate", "critique",
     "summarize", "translate", "implement", "design", "architecture",
     "step by step", "in depth", "thoroughly", "comprehensive", "detailed",
 )
-SIMPLE_Q_RE = re.compile(
+_SIMPLE_Q_RE = re.compile(
     r"^(what|who|when|where|how much|how many|is|are|was|were|can|does|do|did)"
     r"\b.{0,60}\??\s*$",
     re.IGNORECASE,
 )
 
 
-def _text_from_messages(messages: list[dict]) -> str:
-    """Extract last user message text for scoring."""
-    for m in reversed(messages):
-        if m.get("role") == "user":
-            content = m.get("content", "")
-            if isinstance(content, str):
-                return content
-            if isinstance(content, list):
-                return " ".join(
-                    p.get("text", "") for p in content
-                    if isinstance(p, dict) and p.get("type") == "text"
-                )
-    return ""
-
-
 def complexity_score(messages: list[dict]) -> float:
     """0.0 = simple, 1.0 = complex. Used to break ties within a preference tier."""
-    last_user = _text_from_messages(messages)
+    last_user = next(
+        (text_content(m) for m in reversed(messages) if m.get("role") == "user"),
+        "",
+    )
     words = last_user.split()
     score = 0.0
     if len(words) > 50:
         score += 0.3
     if len(words) > 150:
         score += 0.2
-    hits = sum(1 for s in COMPLEXITY_SIGNALS if s in last_user.lower())
+    hits = sum(1 for s in _COMPLEXITY_SIGNALS if s in last_user.lower())
     score += min(hits * 0.15, 0.4)
     if sum(1 for m in messages if m.get("role") == "user") > 4:
         score += 0.1
-    if SIMPLE_Q_RE.match(last_user.strip()):
+    if _SIMPLE_Q_RE.match(last_user.strip()):
         score -= 0.3
     return max(0.0, min(1.0, score))
 
@@ -76,11 +65,15 @@ def select_model(
     """Return (backend_name, model_id, prefer_loaded).
 
     Selection order:
-      1. Scope filter: eliminate backends not eligible under effective_scope
-      2. Context filter: skip models whose ctx_limit < estimated_tokens
-      3. For "fastest" pref: check prefer-loaded fast-tier first
-      4. Tier escalation: fastest → balanced → best
-      5. complexity > 0.65 with "balanced" promotes to "best"
+      1. Scope filter   — eliminate backends not eligible under effective_scope
+      2. Context filter — skip models whose ctx_limit < estimated_tokens
+      3. Prefer-loaded  — for "fastest" pref, prefer warm fast-tier models first
+      4. Tier pick      — fastest → balanced → best
+      5. Complexity     — "balanced" + complexity > 0.65 promotes to "best"
+
+    Falls back to the "general" task class when task_class has no config entry.
+    Returns ("", "", False) only when no backend at all is reachable; the caller
+    is expected to translate this into a 503 / unavailable error.
     """
     cls_cfg = config.task_classes.get(task_class) or config.task_classes.get("general")
     if cls_cfg is None:
@@ -117,6 +110,7 @@ def select_model(
         return next((m for m in pool if m.tier == "fast"), None)
 
     def _balanced(pool: list[ModelDescriptor]) -> ModelDescriptor | None:
+        # Prefer a balanced-tier local model; fall back to any local model.
         local_balanced = [m for m in pool if backends[m.backend].is_local and m.tier == "balanced"]
         if local_balanced:
             return local_balanced[-1]

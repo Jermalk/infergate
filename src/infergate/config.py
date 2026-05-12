@@ -1,45 +1,72 @@
+"""
+Configuration dataclasses for infergate.
+
+RouterConfig is the single source of truth for routing behaviour. It is
+intentionally backend-agnostic: backend instances are registered at runtime,
+not named here beyond a string key that must match Backend.name().
+"""
 from dataclasses import dataclass
 from dataclasses import field
+from typing import Literal
+
+
+Scope = Literal["local", "remote", "hybrid"]
+Tier  = Literal["fast", "balanced", "best"]
 
 
 @dataclass
 class ModelDescriptor:
+    """One model entry in a task class, bound to a named backend."""
+
     id:        str
-    backend:   str           # must match a registered Backend.name()
-    tier:      str           # "fast" | "balanced" | "best"
+    backend:   str    # must match a registered Backend.name()
+    tier:      Tier   # controls preference order within select_model
     ctx_limit: int = 32768
 
 
 @dataclass
 class TaskClassConfig:
+    """Routing behaviour for one semantic task class."""
+
     description:    str
     models:         list[ModelDescriptor] = field(default_factory=list)
-    examples:       list[str]            = field(default_factory=list)
-    scope_override: str | None = None    # "local" | "remote" | "hybrid"
+    examples:       list[str]             = field(default_factory=list)
+    scope_override: Scope | None = None   # overrides global provider_scope for this class
 
 
 @dataclass
 class RouterSettings:
-    embedding_min_confidence: float = 0.72
-    long_context_tokens:      int   = 4000
-    keywords:                 dict[str, list[str]] = field(default_factory=dict)
+    """Thresholds and keyword tables that tune the routing pipeline."""
+
+    embedding_min_confidence: float = 0.72  # cosine threshold; below → fall back to general
+    long_context_tokens:      int   = 4000  # token count triggering the document class
+    keywords: dict[str, list[str]] = field(default_factory=dict)  # class → trigger phrases
 
 
 @dataclass
 class RouterConfig:
+    """Complete routing configuration. Construct directly or via from_dict()."""
+
     task_classes:   dict[str, TaskClassConfig]
     router:         RouterSettings = field(default_factory=RouterSettings)
-    provider_scope: str = "local"    # "local" | "remote" | "hybrid"
-    active_profile: str = "fast"
+    provider_scope: Scope = "local"   # default scope when no override applies
+    active_profile: str   = "fast"
     profiles:       dict[str, dict] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: dict) -> "RouterConfig":
+        """Parse from a config.yaml / config.json dict.
+
+        Accepts both current infergate field names and legacy ov_server names:
+          embedding_threshold       → embedding_min_confidence
+          provider / backend        → backend (in model descriptors)
+          max_context_tokens        → ctx_limit
+        """
         router_raw = data.get("router", {})
         router_settings = RouterSettings(
             embedding_min_confidence=router_raw.get(
                 "embedding_min_confidence",
-                router_raw.get("embedding_threshold", 0.72),  # ov_server compat key
+                router_raw.get("embedding_threshold", 0.72),
             ),
             long_context_tokens=router_raw.get("long_context_tokens", 4000),
             keywords=router_raw.get("keywords", {}),

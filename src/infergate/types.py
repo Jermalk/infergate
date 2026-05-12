@@ -1,31 +1,33 @@
 from dataclasses import dataclass
-from dataclasses import field
 from enum import Enum
 
 
 class RouteStrategy(str, Enum):
-    SIGNAL   = "signal"
-    KEYWORD  = "keyword"
-    EMBEDDING = "embedding"
-    FALLBACK = "embedding_fallback"
+    SIGNAL    = "signal"            # image / tools / long-context / keyword match
+    KEYWORD   = "keyword"           # explicit #code / #document / #general directive
+    EMBEDDING = "embedding"         # cosine similarity above min_confidence threshold
+    FALLBACK  = "embedding_fallback"  # cosine similarity below threshold → general
 
 
 @dataclass
 class InferRequest:
-    """Minimal request shape needed by the router. Does NOT proxy — caller handles execution."""
+    """Minimal request shape passed to the router. Does NOT proxy — caller handles execution."""
+
     messages:   list[dict]
-    model:      str | None = None
-    max_tokens: int | None = None
-    stream:     bool = False
-    tools:      list[dict] | None = None
+    model:      str | None       = None  # optional caller hint; router may override
+    max_tokens: int | None       = None
+    stream:     bool             = False
+    tools:      list[dict] | None = None  # presence triggers web_search signal
 
 
 @dataclass
 class RouteDecision:
-    backend:       str
-    model_id:      str
-    task_class:    str
+    """Routing outcome returned by Router.decide(). Contains no side-effects."""
+
+    backend:       str             # registered backend name matching Backend.name()
+    model_id:      str             # model identifier on that backend
+    task_class:    str             # e.g. "code", "document", "general", "vision"
     strategy:      RouteStrategy
-    confidence:    float
-    prefer_loaded: bool = False
-    embedding:     list[float] | None = None
+    confidence:    float           # cosine similarity score; 1.0 for signal-based routes
+    prefer_loaded: bool = False    # True when selection was influenced by in-memory model
+    embedding:     list[float] | None = None  # request embedding vector, if computed

@@ -14,7 +14,18 @@ class EmbeddingProvider(Protocol):
 
 @runtime_checkable
 class Backend(Protocol):
-    """Represents one inference backend."""
+    """Represents one inference backend.
+
+    Two usage modes:
+    - Routing only: implement everything except chat(). Router.decide() never
+      calls chat(); the caller executes against the chosen backend itself.
+    - Routing + execution: implement chat() too. The demo gateway uses this mode.
+
+    Contract for loaded_model_ids():
+      Return model IDs currently warm in memory (e.g. loaded into GPU VRAM).
+      Remote backends with no concept of "loaded" must return an empty list.
+      The router uses this to prefer warm models under the "fastest" profile.
+    """
 
     @property
     def is_local(self) -> bool: ...
