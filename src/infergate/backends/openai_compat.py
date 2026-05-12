@@ -63,7 +63,7 @@ class OpenAICompatBackend:
         """Populate model list from GET /v1/models."""
         headers = {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
         async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(f"{self._base_url}/v1/models", headers=headers)
+            resp = await client.get(f"{self._base_url}/models", headers=headers)
             resp.raise_for_status()
             data = resp.json()
         self._fetched_models = [m["id"] for m in data.get("data", [])]
@@ -85,7 +85,7 @@ class OpenAICompatBackend:
 
         async with httpx.AsyncClient(timeout=120) as client:
             resp = await client.post(
-                f"{self._base_url}/v1/chat/completions",
+                f"{self._base_url}/chat/completions",
                 json=payload,
                 headers=headers,
             )
