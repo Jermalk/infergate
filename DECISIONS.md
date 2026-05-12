@@ -45,3 +45,51 @@
 **Rejected alternative:** Description-only centroids as per the concept spec.
 
 **Affects:** `src/infergate/config.py`, `src/infergate/embeddings.py`.
+
+---
+
+### 2026-05-12 — pydantic-settings for gateway operational config
+
+**Decision:** `demo/gateway.py` uses `pydantic-settings` `BaseSettings` with `env_prefix="INFERGATE_"` for all operational parameters (URLs, API keys, log level, config path).
+
+**Rationale:** Replaces six scattered `os.environ.get()` calls with a single typed, validated, documented class. `SecretStr` for API keys prevents token leakage in logs and repr. Supports `.env` files for local dev. Directly maps to Kubernetes Secret + ConfigMap pattern.
+
+**Rejected alternative:** Bare `os.environ.get()` with inline defaults — no validation, no type safety, no `.env` support.
+
+**Affects:** `demo/gateway.py`, `pyproject.toml` `[demo]` extras.
+
+---
+
+### 2026-05-12 — Settings class lives in gateway only, not in the library
+
+**Decision:** `Settings(BaseSettings)` is defined in `demo/gateway.py` and is not exposed as part of the `infergate` library.
+
+**Rationale:** Operational configuration (ports, credentials, infrastructure URLs) is an application-layer concern. The library's config boundary is `RouterConfig.from_dict(dict)` — how that dict is sourced is the caller's responsibility. Adding `BaseSettings` to the library would couple it to pydantic-settings and impose opinions on config loading that library users may not share.
+
+**Rejected alternative:** An `infergate.settings` module exposing a base `Settings` class for gateway implementors.
+
+**Affects:** `demo/gateway.py`, `src/infergate/` (unchanged).
+
+---
+
+### 2026-05-12 — Routing config YAML-only; no env var overrides for thresholds
+
+**Decision:** Routing topology (task classes, model lists, thresholds, keywords) is expressed exclusively in `config.yaml`. Environment variables control only operational parameters (URLs, keys, log level, config path).
+
+**Rationale:** Routing topology is structural configuration that belongs in version control alongside the code. Allowing threshold overrides via env vars would make the effective routing config invisible — split across a file and environment state that may differ between instances. ConfigMaps in Kubernetes handle this correctly: topology is a ConfigMap, secrets are env vars.
+
+**Rejected alternative:** `INFERGATE_EMBEDDING_THRESHOLD` and similar env vars that override individual `RouterSettings` fields.
+
+**Affects:** `demo/gateway.py` `Settings`, `demo/config.yaml`.
+
+---
+
+### 2026-05-12 — RouteStrategy.KEYWORD separated from SIGNAL
+
+**Decision:** Hashtag directives (`#code`, `#document`, `#general`) produce `RouteStrategy.KEYWORD`, while image detection, tools, long context, and keyword phrase matching produce `RouteStrategy.SIGNAL`. `task_class_directive()` is called by `Router.decide()` before `detect_signal()`.
+
+**Rationale:** The spec defines KEYWORD for explicit user intent and SIGNAL for objective evidence. Collapsing both into SIGNAL makes the strategy field less useful for monitoring — you cannot tell from the header whether routing was user-directed or automatically inferred. Separating them also keeps `detect_signal()` single-responsibility: it covers objective signals only.
+
+**Rejected alternative:** Having `detect_signal()` return the directive and set SIGNAL for everything, as was the original implementation.
+
+**Affects:** `src/infergate/router.py`, `src/infergate/signals.py`, `src/infergate/types.py`.

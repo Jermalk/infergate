@@ -1,6 +1,1 @@
-## Carried over:
-
-Phase 3 demo gateway built and live-tested. Three demo requests show signal (O1 hashtag directive),
-embedding (cosine similarity classification), and keyword (string-match signal) routing. Both backends
-verified live: Ollama 13 models, OVH 21 models. Key fix: config.yaml `model_preference: fast` must be
-`fastest` to match selector.py `_pick()` — "fast" falls through to `_best` and always picks last pool item.
+Session 3 summary: Code review pass fixed unused import, DRY violations (_text_from_messages and _extract_query both replaced by text_content from signals), private naming for _COMPLEXITY_SIGNALS/_SIMPLE_Q_RE, Literal types for Tier/Scope, config.py class docstrings. Gateway hardened with pydantic-settings Settings class (SecretStr for API key, force=True on basicConfig, Backend protocol type for backends dict). RouteStrategy.KEYWORD correctly separated from SIGNAL; detect_signal no longer handles directives. ov_server wired as third backend with exclude_ids={"Auto"}. config.yaml updated with all three backends and vision class covering ov_server VLMs. Live-tested all six routing paths. README written from scratch: 480 lines covering problem, pipeline diagram, quick start, config reference, scope system, directives, backend guide, RouteDecision fields, custom provider, Kubernetes pattern, design decisions.

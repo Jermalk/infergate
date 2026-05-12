@@ -1,11 +1,11 @@
 ## NOW
 
-**Working on:** Phase 3 complete — demo gateway live-tested; next is PyPI publish
-**Last commit:** 1772047 — feat: Phase 3 — demo gateway (FastAPI + Ollama + OVH)
-**Next action:** publish to PyPI (`python -m build && twine upload dist/*`)
+**Working on:** PyPI publish — library is feature-complete and review-clean
+**Last commit:** f849594 — docs: comprehensive README
+**Next action:** `python -m build && twine upload dist/*`
 **Blocked on:** nothing
 **Open questions:** none
-**Tests:** pass 65/65
+**Tests:** pass 66/66
 
 ---
 
@@ -28,3 +28,12 @@
 **Blocked on:** nothing
 **Open questions:** none
 **Tests:** pass 65/65
+
+### 2026-05-12 — Session 3 (f849594)
+
+**Working on:** Code review, pydantic-settings, ov_server backend, README
+**Last commit:** f849594 — docs: comprehensive README
+**Next action:** PyPI publish
+**Blocked on:** nothing
+**Open questions:** none
+**Tests:** pass 66/66
