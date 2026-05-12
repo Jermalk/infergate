@@ -15,6 +15,18 @@ class OllamaBackend:
         self._name = name
         self._base_url = base_url.rstrip("/")
         self._models: list[str] = []
+        self._loaded: list[str] = []
+
+    @classmethod
+    async def create(
+        cls,
+        base_url: str = "http://localhost:11434",
+        name: str = "ollama",
+    ) -> "OllamaBackend":
+        """Async factory: creates backend and populates model lists immediately."""
+        backend = cls(base_url=base_url, name=name)
+        await backend.fetch_models()
+        return backend
 
     @property
     def is_local(self) -> bool:
@@ -27,15 +39,27 @@ class OllamaBackend:
         return list(self._models)
 
     def loaded_model_ids(self) -> list[str]:
-        return list(self._models)  # Ollama keeps all pulled models immediately available
+        """Models currently running in Ollama memory (from /api/ps cache)."""
+        return list(self._loaded)
 
     async def fetch_models(self) -> list[str]:
-        """Discover models via GET /api/tags."""
+        """Populate available and loaded model lists from Ollama.
+
+        Calls /api/tags for all pulled models and /api/ps for models
+        currently loaded in memory. Call this before first use, or to refresh.
+        """
         async with httpx.AsyncClient(timeout=10) as client:
-            resp = await client.get(f"{self._base_url}/api/tags")
-            resp.raise_for_status()
-            data = resp.json()
-        self._models = [m["name"] for m in data.get("models", [])]
+            tags_resp = await client.get(f"{self._base_url}/api/tags")
+            tags_resp.raise_for_status()
+            self._models = [m["name"] for m in tags_resp.json().get("models", [])]
+
+            try:
+                ps_resp = await client.get(f"{self._base_url}/api/ps")
+                ps_resp.raise_for_status()
+                self._loaded = [m["name"] for m in ps_resp.json().get("models", [])]
+            except Exception:
+                self._loaded = []
+
         return self._models
 
     async def chat(self, request: InferRequest, model_id: str) -> dict:
@@ -55,13 +79,20 @@ class OllamaBackend:
             resp.raise_for_status()
             raw = resp.json()
 
-        # Normalise to OpenAI-compat shape
+        prompt_tokens = raw.get("prompt_eval_count", 0)
+        completion_tokens = raw.get("eval_count", 0)
+
         return {
             "id":      raw.get("model", model_id),
             "object":  "chat.completion",
             "choices": [{
                 "index":         0,
                 "message":       raw.get("message", {}),
-                "finish_reason": "stop",
+                "finish_reason": raw.get("done_reason", "stop"),
             }],
+            "usage": {
+                "prompt_tokens":     prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens":      prompt_tokens + completion_tokens,
+            },
         }
