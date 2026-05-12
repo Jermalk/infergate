@@ -62,6 +62,9 @@ class Settings(BaseSettings):
 
     ollama_url: str = "http://localhost:11434"
 
+    # ov_server: local OpenVINO-backed OAI-compat instance. Empty = disabled.
+    ov_server_url: str = ""
+
     embedding_model: str = "intfloat/multilingual-e5-large"
 
     log_level: str = "INFO"
@@ -96,6 +99,20 @@ async def lifespan(app: FastAPI):
         log.info("[ollama] models: %s", ollama.available_models())
     except Exception as exc:
         log.warning("[ollama] unavailable (%s) — skipping", exc)
+
+    # ── ov_server (local OpenVINO) ────────────────────────────────────────────
+    if settings.ov_server_url:
+        try:
+            ov = await OpenAICompatBackend.create(
+                name="ov_server",
+                base_url=settings.ov_server_url,
+                is_local=True,
+                exclude_ids=frozenset({"Auto"}),  # routing sentinel, not a real model
+            )
+            backends["ov_server"] = ov
+            log.info("[ov_server] models: %s", ov.available_models())
+        except Exception as exc:
+            log.warning("[ov_server] unavailable (%s) — skipping", exc)
 
     # ── OVH AI Endpoints ──────────────────────────────────────────────────────
     ovh_key = settings.ovh_api_key.get_secret_value()
