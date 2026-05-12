@@ -1,17 +1,23 @@
 """
 infergate demo gateway — thin FastAPI app that routes requests via infergate.
 
-Backends:
-  ollama  — local Ollama at localhost:11434
-  ovh     — OVH AI Endpoints (OAI-compat) at INFERGATE_OVH_BASE_URL
+Configuration is driven by pydantic-settings. All operational parameters come
+from environment variables (prefixed INFERGATE_) or an optional .env file.
+The routing topology (task classes, model lists) comes from the YAML config file.
 
-Environment variables:
-  INFERGATE_OVH_API_KEY   — OVH bearer token (required for OVH backend)
-  INFERGATE_OVH_BASE_URL  — override OVH endpoint URL
-  INFERGATE_CONFIG        — path to config.yaml (default: same dir as this file)
+Key environment variables:
+  INFERGATE_OVH_API_KEY      OVH bearer token (required for OVH backend)
+  INFERGATE_OVH_BASE_URL     override OVH endpoint URL
+  INFERGATE_OLLAMA_URL       override Ollama base URL
+  INFERGATE_CONFIG           path to config.yaml
+  INFERGATE_EMBEDDING_MODEL  sentence-transformers model name
+  INFERGATE_LOG_LEVEL        logging level (default INFO)
+
+Kubernetes pattern:
+  - ConfigMap  → mount config.yaml; set INFERGATE_CONFIG to mount path
+  - Secret     → set INFERGATE_OVH_API_KEY from secretKeyRef
 """
 import logging
-import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -20,6 +26,9 @@ from fastapi import FastAPI
 from fastapi import HTTPException
 from fastapi import Request
 from fastapi.responses import JSONResponse
+from pydantic import SecretStr
+from pydantic_settings import BaseSettings
+from pydantic_settings import SettingsConfigDict
 
 from infergate import InferRequest
 from infergate import Router
@@ -28,13 +37,42 @@ from infergate.backends.ollama import OllamaBackend
 from infergate.backends.openai_compat import OpenAICompatBackend
 from infergate.embeddings import SentenceTransformerProvider
 
+_SCRIPT_DIR = Path(__file__).parent
+
+
+class Settings(BaseSettings):
+    """Operational settings — sourced from env vars or .env file.
+
+    All fields map to INFERGATE_<FIELD_NAME> environment variables.
+    Routing topology (task classes, thresholds) stays in config.yaml.
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="INFERGATE_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+    )
+
+    config: Path = _SCRIPT_DIR / "config.yaml"
+
+    ovh_api_key: SecretStr = SecretStr("")
+    ovh_base_url: str = "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1"
+
+    ollama_url: str = "http://localhost:11434"
+
+    embedding_model: str = "intfloat/multilingual-e5-large"
+
+    log_level: str = "INFO"
+
+
+settings = Settings()
+
 logging.basicConfig(
-    level=logging.INFO,
+    level=settings.log_level.upper(),
     format="%(asctime)s %(levelname)-8s %(name)s — %(message)s",
 )
 log = logging.getLogger("infergate.demo")
-
-_SCRIPT_DIR = Path(__file__).parent
 
 # ── globals populated at startup ──────────────────────────────────────────────
 router: Router | None = None
@@ -45,30 +83,25 @@ backends: dict[str, OllamaBackend | OpenAICompatBackend] = {}
 async def lifespan(app: FastAPI):
     global router, backends
 
-    config_path = Path(os.environ.get("INFERGATE_CONFIG", _SCRIPT_DIR / "config.yaml"))
-    log.info("loading config from %s", config_path)
-    cfg_dict = yaml.safe_load(config_path.read_text())
+    log.info("loading config from %s", settings.config)
+    cfg_dict = yaml.safe_load(settings.config.read_text())
     config = RouterConfig.from_dict(cfg_dict)
 
     # ── Ollama ────────────────────────────────────────────────────────────────
     try:
-        ollama = await OllamaBackend.create(base_url="http://localhost:11434", name="ollama")
+        ollama = await OllamaBackend.create(base_url=settings.ollama_url, name="ollama")
         backends["ollama"] = ollama
         log.info("[ollama] models: %s", ollama.available_models())
     except Exception as exc:
         log.warning("[ollama] unavailable (%s) — skipping", exc)
 
     # ── OVH AI Endpoints ──────────────────────────────────────────────────────
-    ovh_key = os.environ.get("INFERGATE_OVH_API_KEY", "")
-    ovh_url = os.environ.get(
-        "INFERGATE_OVH_BASE_URL",
-        "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1",
-    )
+    ovh_key = settings.ovh_api_key.get_secret_value()
     if ovh_key:
         try:
             ovh = await OpenAICompatBackend.create(
                 name="ovh",
-                base_url=ovh_url,
+                base_url=settings.ovh_base_url,
                 api_key=ovh_key,
                 is_local=False,
             )
@@ -84,8 +117,8 @@ async def lifespan(app: FastAPI):
 
     # ── Router ────────────────────────────────────────────────────────────────
     try:
-        provider = SentenceTransformerProvider()
-        log.info("[embeddings] SentenceTransformerProvider loaded")
+        provider = SentenceTransformerProvider(model_name=settings.embedding_model)
+        log.info("[embeddings] provider loaded: %s", settings.embedding_model)
     except Exception as exc:
         log.warning("[embeddings] failed to load model (%s) — embedding routing disabled", exc)
         provider = None
