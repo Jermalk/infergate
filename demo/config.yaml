@@ -1,0 +1,99 @@
+# infergate demo gateway config
+# Backends wired in gateway.py:
+#   ollama  — http://localhost:11434  (local)
+#   ovh     — https://oai.endpoints.kepler.ai.cloud.ovh.net/v1  (remote)
+
+provider_scope: hybrid
+
+active_profile: fast
+profiles:
+  fast:
+    model_preference: fastest
+  best:
+    model_preference: best
+
+router:
+  embedding_min_confidence: 0.60
+  long_context_tokens: 3000
+  keywords:
+    code:
+      - "write a function"
+      - "fix the bug"
+      - "implement"
+      - "def "
+      - "class "
+    web_search:
+      - "search the web"
+      - "look up"
+      - "find online"
+
+task_classes:
+  general:
+    description: "General conversation, questions, and answers."
+    examples:
+      - "What is the capital of France?"
+      - "Tell me a joke."
+      - "Explain quantum entanglement simply."
+    models:
+      - id: qwen2.5:3b
+        backend: ollama
+        tier: fast
+        ctx_limit: 32768
+      - id: Mistral-7B-Instruct-v0.3
+        backend: ovh
+        tier: balanced
+        ctx_limit: 32768
+
+  code:
+    description: "Code generation, debugging, and software engineering tasks."
+    examples:
+      - "Write a Python function to parse JSON."
+      - "Fix the null pointer exception in this code."
+      - "Implement a binary search tree."
+    scope_override: hybrid
+    models:
+      - id: qwen2.5:3b
+        backend: ollama
+        tier: fast
+        ctx_limit: 32768
+      - id: Mistral-7B-Instruct-v0.3
+        backend: ovh
+        tier: balanced
+        ctx_limit: 32768
+
+  long_context:
+    description: "Summarisation, document analysis, and long text processing."
+    examples:
+      - "Summarise this document."
+      - "Extract key points from the following text."
+      - "Analyse the sentiment of this article."
+    scope_override: remote
+    models:
+      - id: Mistral-7B-Instruct-v0.3
+        backend: ovh
+        tier: balanced
+        ctx_limit: 32768
+
+  web_search:
+    description: "Requests that require retrieving current information from the web."
+    examples:
+      - "What happened in the news today?"
+      - "Search for the latest Python release."
+    scope_override: remote
+    models:
+      - id: Mistral-7B-Instruct-v0.3
+        backend: ovh
+        tier: balanced
+        ctx_limit: 32768
+
+  vision:
+    description: "Visual understanding, image analysis, and multimodal tasks."
+    examples:
+      - "What is in this image?"
+      - "Describe what you see in the photo."
+    scope_override: remote
+    models:
+      - id: Qwen2.5-VL-72B-Instruct
+        backend: ovh
+        tier: best
+        ctx_limit: 32768

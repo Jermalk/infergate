@@ -28,7 +28,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "black", "mypy"]
+dev  = ["pytest>=8.0", "pytest-asyncio>=0.23", "black", "mypy"]
+demo = ["fastapi>=0.111", "uvicorn[standard]>=0.29"]
 
 [project.urls]
 Homepage = "https://github.com/Jermalk/infergate"
