@@ -445,7 +445,7 @@ class TestRouterDecide:
         req = InferRequest(messages=[_user("fix this #code")])
         decision = await router.decide(req)
         assert decision.task_class == "code"
-        assert decision.strategy == RouteStrategy.SIGNAL
+        assert decision.strategy == RouteStrategy.KEYWORD
 
     @pytest.mark.asyncio
     async def test_no_provider_falls_back_to_general(self, basic_config, local_backend):

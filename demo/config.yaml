@@ -61,7 +61,7 @@ task_classes:
         tier: balanced
         ctx_limit: 32768
 
-  long_context:
+  document:
     description: "Summarisation, document analysis, and long text processing."
     examples:
       - "Summarise this document."

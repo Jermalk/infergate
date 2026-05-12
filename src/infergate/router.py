@@ -14,6 +14,7 @@ from infergate.selector import complexity_score
 from infergate.selector import select_model
 from infergate.signals import detect_signal
 from infergate.signals import has_cloud_directive
+from infergate.signals import task_class_directive
 from infergate.types import InferRequest
 from infergate.types import RouteDecision
 from infergate.types import RouteStrategy
@@ -73,9 +74,14 @@ class Router:
         settings = self._config.router
 
         # ── Stage 1: signal detection ──────────────────────────────────────
-        signal_class = detect_signal(request, settings)
-        strategy = RouteStrategy.SIGNAL if signal_class else None
-        task_class = signal_class
+        directive = task_class_directive(request.messages)
+        if directive:
+            task_class: str | None = directive
+            strategy: RouteStrategy | None = RouteStrategy.KEYWORD
+        else:
+            signal_class = detect_signal(request, settings)
+            task_class = signal_class
+            strategy = RouteStrategy.SIGNAL if signal_class else None
         confidence = 1.0
         embedding: list[float] | None = None
 
