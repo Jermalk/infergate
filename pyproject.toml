@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "infergate"
-version = "0.1.0"
+version = "0.1.1"
 description = "Semantic routing layer for AI inference backends"
 readme = "README.md"
 license = "MIT"
