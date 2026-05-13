@@ -28,6 +28,14 @@ def text_content(msg: dict) -> str:
     return ""
 
 
+def last_user_text(messages: list[dict]) -> str:
+    """Return the text of the most recent user message, or empty string."""
+    return next(
+        (text_content(m) for m in reversed(messages) if m.get("role") == "user"),
+        "",
+    )
+
+
 def has_images(messages: list[dict]) -> bool:
     """True if any message contains an image_url content part."""
     for msg in messages:
@@ -47,21 +55,13 @@ def task_class_directive(messages: list[dict]) -> str | None:
     Only the last user message is checked; earlier turns are ignored so the
     directive applies to the current request, not a historical one.
     """
-    last_user = next(
-        (text_content(m) for m in reversed(messages) if m.get("role") == "user"),
-        "",
-    )
-    m = _TASK_DIRECTIVE_RE.search(last_user)
+    m = _TASK_DIRECTIVE_RE.search(last_user_text(messages))
     return m.group(1).lower() if m else None
 
 
 def has_cloud_directive(messages: list[dict]) -> bool:
     """True if the last user message contains #ovh or #cloud."""
-    last_user = next(
-        (text_content(m) for m in reversed(messages) if m.get("role") == "user"),
-        "",
-    )
-    return bool(_CLOUD_DIRECTIVE_RE.search(last_user))
+    return bool(_CLOUD_DIRECTIVE_RE.search(last_user_text(messages)))
 
 
 def detect_signal(req: InferRequest, settings: RouterSettings) -> str | None:
@@ -93,12 +93,9 @@ def detect_signal(req: InferRequest, settings: RouterSettings) -> str | None:
     if total_tokens > settings.long_context_tokens:
         return "document"
 
-    last_user_text = next(
-        (text_content(m) for m in reversed(req.messages) if m.get("role") == "user"),
-        "",
-    )
-    if last_user_text:
-        text_lower = last_user_text.lower()
+    last_text = last_user_text(req.messages)
+    if last_text:
+        text_lower = last_text.lower()
         for task_class, keywords in settings.keywords.items():
             if any(kw.lower() in text_lower for kw in keywords):
                 return task_class

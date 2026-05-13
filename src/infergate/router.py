@@ -14,6 +14,7 @@ from infergate.selector import complexity_score
 from infergate.selector import select_model
 from infergate.signals import detect_signal
 from infergate.signals import has_cloud_directive
+from infergate.signals import last_user_text
 from infergate.signals import task_class_directive
 from infergate.signals import text_content
 from infergate.types import InferRequest
@@ -93,10 +94,7 @@ class Router:
         # ── Stage 3: embedding classification (slow path) ─────────────────────
         if task_class is None:
             if self._provider and self._centroids:
-                query = next(
-                    (text_content(m) for m in reversed(request.messages) if m.get("role") == "user"),
-                    "",
-                )
+                query = last_user_text(request.messages)
                 task_class, confidence, embedding = await route_by_embedding(
                     query,
                     self._centroids,

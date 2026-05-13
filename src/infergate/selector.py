@@ -7,7 +7,7 @@ import re
 from infergate.config import ModelDescriptor
 from infergate.config import RouterConfig
 from infergate.protocols import Backend
-from infergate.signals import text_content
+from infergate.signals import last_user_text
 
 
 log = logging.getLogger("infergate")
@@ -26,10 +26,7 @@ _SIMPLE_Q_RE = re.compile(
 
 def complexity_score(messages: list[dict]) -> float:
     """0.0 = simple, 1.0 = complex. Used to break ties within a preference tier."""
-    last_user = next(
-        (text_content(m) for m in reversed(messages) if m.get("role") == "user"),
-        "",
-    )
+    last_user = last_user_text(messages)
     words = last_user.split()
     score = 0.0
     if len(words) > 50:
@@ -90,7 +87,7 @@ def select_model(
         if m.id not in backend.available_models():
             log.warning("'%s' not available on backend '%s' — skipped", m.id, m.backend)
             continue
-        if estimated_tokens and m.ctx_limit and estimated_tokens > m.ctx_limit:
+        if estimated_tokens and estimated_tokens > m.ctx_limit:
             log.info("'%s' ctx_limit %d < prompt ~%d — skipped", m.id, m.ctx_limit, estimated_tokens)
             continue
         available.append(m)
