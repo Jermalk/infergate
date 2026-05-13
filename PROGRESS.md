@@ -1,8 +1,8 @@
 ## NOW
 
-**Working on:** PyPI publish — library is feature-complete and review-clean
-**Last commit:** f849594 — docs: comprehensive README
-**Next action:** `python -m build && twine upload dist/*`
+**Working on:** PyPI publish — 0.1.1 built and ready
+**Last commit:** 4e4ce49 — chore: bump version to 0.1.1
+**Next action:** `twine upload dist/*` (credentials in ~/.pypirc)
 **Blocked on:** nothing
 **Open questions:** none
 **Tests:** pass 66/66
@@ -34,6 +34,15 @@
 **Working on:** Code review, pydantic-settings, ov_server backend, README
 **Last commit:** f849594 — docs: comprehensive README
 **Next action:** PyPI publish
+**Blocked on:** nothing
+**Open questions:** none
+**Tests:** pass 66/66
+
+### 2026-05-14 — Session 4 (4e4ce49)
+
+**Working on:** Pre-publish review and PyPI upload
+**Last commit:** 4e4ce49 — chore: bump version to 0.1.1
+**Next action:** `twine upload dist/*` (credentials in ~/.pypirc)
 **Blocked on:** nothing
 **Open questions:** none
 **Tests:** pass 66/66

@@ -84,7 +84,31 @@
 
 ---
 
-### 2026-05-12 — RouteStrategy.KEYWORD separated from SIGNAL
+### 2026-05-14 — sentence-transformers moved to optional [local-embed] extra
+
+**Decision:** `sentence-transformers` is not a core dependency; users install it via `pip install infergate[local-embed]` only if they use `SentenceTransformerProvider`.
+
+**Rationale:** sentence-transformers pulls the full torch stack (~2 GB CPU wheels). Library users who inject a custom `EmbeddingProvider` should not pay that cost. The import is already lazy inside `_load()`, so no import-time breakage.
+
+**Rejected alternative:** Keeping it mandatory — every library install forces a torch download regardless of usage.
+
+**Affects:** `pyproject.toml` `[project.optional-dependencies]`.
+
+---
+
+### 2026-05-14 — pydantic and pyyaml removed from core dependencies
+
+**Decision:** `pydantic` and `pyyaml` moved from `[project.dependencies]` to the `[demo]` optional extra.
+
+**Rationale:** Neither is imported anywhere in `src/infergate/`. Both are used exclusively by `demo/gateway.py`. Including them in core deps forced ~15 MB of unnecessary installs on all library users.
+
+**Rejected alternative:** Keeping them in core for "convenience" — there is no convenience if the library never imports them.
+
+**Affects:** `pyproject.toml`.
+
+---
+
+### 2026-05-14 — RouteStrategy.KEYWORD separated from SIGNAL
 
 **Decision:** Hashtag directives (`#code`, `#document`, `#general`) produce `RouteStrategy.KEYWORD`, while image detection, tools, long context, and keyword phrase matching produce `RouteStrategy.SIGNAL`. `task_class_directive()` is called by `Router.decide()` before `detect_signal()`.
 
