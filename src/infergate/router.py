@@ -105,6 +105,20 @@ class Router:
             log.warning("[router] centroid computation failed (%s) — embedding routing disabled", exc)
             self._centroids = {}
 
+    def _classify_vec(self, vec_list: list[float]) -> _EmbedResult:
+        """Centroid comparison for a pre-encoded vector. Does not call the provider."""
+        vec = np.array(vec_list, dtype=float)
+        norm = np.linalg.norm(vec)
+        vec = vec / max(norm, 1e-9)
+        best_class, best_score = "general", 0.0
+        for tc, centroid in self._centroids.items():
+            score = float(np.dot(vec, centroid))
+            if score > best_score:
+                best_class, best_score = tc, score
+        if best_score < self._config.router.embedding_min_confidence:
+            best_class = "general"
+        return (best_class, best_score, vec.tolist())
+
     async def decide(self, request: InferRequest, *, trace: bool = False) -> RouteDecision:
         """Main routing entry point. Returns RouteDecision without executing the request.
 
@@ -223,6 +237,166 @@ class Router:
             estimated_tokens=total_tokens,
             trace=route_trace,
         )
+
+    async def decide_batch(
+        self,
+        requests: list[InferRequest],
+        trace: bool = False,
+    ) -> list[RouteDecision]:
+        """Route a batch of requests sharing a single embed_batch() call.
+
+        Signal/keyword detection runs per-request (O(1)). Remaining requests are
+        checked against the embedding cache; uncached unique queries are collected
+        and sent as one embed_batch() call. Results are stored in the cache before
+        routing completes, so a subsequent decide() or decide_batch() for the same
+        queries will hit the cache.
+
+        embedding_ms is not set in trace for batch requests — the embed_batch() call
+        is shared and its wall time is not attributable to individual requests.
+        """
+        if not requests:
+            return []
+
+        settings = self._config.router
+        profile = self._config.profiles.get(self._config.active_profile, {})
+        profile_pref = profile.get("model_preference", "balanced")
+
+        # ── Phase 1: signal detection + cache lookup ───────────────────────────
+        task_classes:  list[str | None]           = []
+        strategies:    list[RouteStrategy | None] = []
+        directives:    list[str | None]           = []
+        images_flags:  list[bool]                 = []
+        queries:       list[str | None]           = []
+        cache_hits:    list[bool | None]          = []
+        eliminateds:   list[list | None]          = []
+
+        embed_results: dict[str, _EmbedResult] = {}
+        uncached_queries: list[str] = []
+        seen_uncached: set[str] = set()
+
+        for req in requests:
+            eliminated = [] if trace else None
+            images_present = has_images(req.messages)
+            directive = task_class_directive(req.messages, self._task_directive_re)
+
+            if directive:
+                task_classes.append(directive)
+                strategies.append(RouteStrategy.KEYWORD)
+                queries.append(None)
+                cache_hits.append(None)
+            else:
+                signal_class = detect_signal(req, settings, images_present=images_present)
+                if signal_class:
+                    task_classes.append(signal_class)
+                    strategies.append(RouteStrategy.SIGNAL)
+                    queries.append(None)
+                    cache_hits.append(None)
+                else:
+                    task_classes.append(None)
+                    strategies.append(None)
+                    if self._provider and self._centroids:
+                        query = last_user_text(req.messages)
+                        cached = self._embed_cache.get(query)
+                        if cached is not None:
+                            embed_results[query] = cached
+                            cache_hits.append(True)
+                        else:
+                            if query not in seen_uncached:
+                                uncached_queries.append(query)
+                                seen_uncached.add(query)
+                            cache_hits.append(False)
+                        queries.append(query)
+                    else:
+                        queries.append(None)
+                        cache_hits.append(None)
+
+            directives.append(directive)
+            images_flags.append(images_present)
+            eliminateds.append(eliminated)
+
+        # ── Phase 2: one embed_batch() call for all uncached queries ───────────
+        if uncached_queries and self._provider:
+            vec_lists = await self._provider.embed_batch(
+                [q[:2048] for q in uncached_queries]
+            )
+            for query, vec_list in zip(uncached_queries, vec_lists):
+                result = self._classify_vec(vec_list)
+                self._embed_cache.put(query, result)
+                embed_results[query] = result
+
+        # ── Phase 3: scope resolution + model selection per request ────────────
+        decisions: list[RouteDecision] = []
+        for i, req in enumerate(requests):
+            task_class = task_classes[i]
+            strategy   = strategies[i]
+            directive  = directives[i]
+            images_present = images_flags[i]
+            query      = queries[i]
+            cache_hit  = cache_hits[i]
+            eliminated = eliminateds[i]
+            confidence = 1.0
+            embedding: list[float] | None = None
+
+            if task_class is None:
+                if query is not None and query in embed_results:
+                    task_class, confidence, embedding = embed_results[query]
+                else:
+                    task_class = "general"
+                    confidence = 0.0
+                strategy = (
+                    RouteStrategy.EMBEDDING
+                    if confidence >= settings.embedding_min_confidence
+                    else RouteStrategy.FALLBACK
+                )
+
+            cls_cfg = self._config.task_classes.get(task_class)
+            if cls_cfg and cls_cfg.scope_override:
+                effective_scope = cls_cfg.scope_override
+                scope_source = "class_override"
+            elif has_cloud_directive(req.messages):
+                effective_scope = "remote"
+                scope_source = "cloud_directive"
+            else:
+                effective_scope = self._config.provider_scope
+                scope_source = "global"
+
+            total_tokens = sum(len(text_content(m)) for m in req.messages) // 4
+            required_modality = "vision" if images_present else None
+
+            backend_name, model_id, prefer_loaded = select_model(
+                task_class=task_class,
+                config=self._config,
+                backends=self._backends,
+                effective_scope=effective_scope,
+                profile_pref=profile_pref,
+                complexity=complexity_score(req.messages),
+                estimated_tokens=total_tokens,
+                force_tier=req.force_tier,
+                required_modality=required_modality,
+                _eliminated=eliminated,
+            )
+
+            route_trace = RouteTrace(
+                eliminated=eliminated,
+                scope_source=scope_source,
+                embedding_ms=None,
+                cache_hit=cache_hit,
+            ) if trace else None
+
+            decisions.append(RouteDecision(
+                backend=backend_name,
+                model_id=model_id,
+                task_class=task_class,
+                strategy=strategy,
+                confidence=confidence,
+                prefer_loaded=prefer_loaded,
+                embedding=embedding,
+                task_directive=directive,
+                estimated_tokens=total_tokens,
+                trace=route_trace,
+            ))
+
+        return decisions
 
     def reselect(
         self,

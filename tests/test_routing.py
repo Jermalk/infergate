@@ -1042,3 +1042,138 @@ class TestEmbedCache:
     def test_cache_size_default(self):
         cfg = RouterConfig.from_dict({"task_classes": {}})
         assert cfg.router.embedding_cache_size == 512
+
+
+class TestDecideBatch:
+    @pytest.mark.asyncio
+    async def test_empty_batch_returns_empty(self, basic_config, local_backend):
+        router = Router(basic_config, {"loc": local_backend})
+        assert await router.decide_batch([]) == []
+
+    @pytest.mark.asyncio
+    async def test_batch_length_matches_input(self, basic_config, local_backend, mock_provider):
+        router = Router(basic_config, {"loc": local_backend}, mock_provider)
+        await router.load_embeddings()
+        reqs = [InferRequest(messages=[_user(f"query {i}")]) for i in range(5)]
+        results = await router.decide_batch(reqs)
+        assert len(results) == 5
+
+    @pytest.mark.asyncio
+    async def test_identical_queries_one_embed_batch_call(self, basic_config, local_backend):
+        batch_calls = []
+
+        class CountingProvider:
+            async def embed(self, text):
+                import numpy as np
+                return np.random.default_rng(0).standard_normal(4).tolist()
+            async def embed_batch(self, texts):
+                batch_calls.append(len(texts))
+                import numpy as np
+                rng = np.random.default_rng(0)
+                return [rng.standard_normal(4).tolist() for _ in texts]
+
+        router = Router(basic_config, {"loc": local_backend}, CountingProvider())
+        await router.load_embeddings()
+        batch_calls.clear()  # reset — load_embeddings() calls embed_batch per task class
+
+        reqs = [InferRequest(messages=[_user("same query")]) for _ in range(4)]
+        await router.decide_batch(reqs)
+
+        # embed_batch() called exactly once, with exactly one unique query
+        assert sum(batch_calls) == 1
+
+    @pytest.mark.asyncio
+    async def test_distinct_queries_batched_in_one_call(self, basic_config, local_backend):
+        batch_calls: list[int] = []
+
+        class CountingProvider:
+            async def embed(self, text):
+                import numpy as np
+                return np.random.default_rng(hash(text) % 2**31).standard_normal(4).tolist()
+            async def embed_batch(self, texts):
+                batch_calls.append(len(texts))
+                import numpy as np
+                return [
+                    np.random.default_rng(hash(t) % 2**31).standard_normal(4).tolist()
+                    for t in texts
+                ]
+
+        router = Router(basic_config, {"loc": local_backend}, CountingProvider())
+        await router.load_embeddings()
+        batch_calls.clear()
+
+        reqs = [InferRequest(messages=[_user(f"distinct query {i}")]) for i in range(3)]
+        await router.decide_batch(reqs)
+
+        assert len(batch_calls) == 1      # exactly one embed_batch() call
+        assert batch_calls[0] == 3        # all 3 distinct queries sent together
+
+    @pytest.mark.asyncio
+    async def test_signal_requests_skip_embed_batch(self, basic_config, local_backend):
+        batch_calls: list[int] = []
+
+        class CountingProvider:
+            async def embed(self, text):
+                import numpy as np
+                return np.random.default_rng(0).standard_normal(4).tolist()
+            async def embed_batch(self, texts):
+                batch_calls.append(len(texts))
+                import numpy as np
+                return [np.random.default_rng(0).standard_normal(4).tolist() for _ in texts]
+
+        router = Router(basic_config, {"loc": local_backend}, CountingProvider())
+        await router.load_embeddings()
+        batch_calls.clear()
+
+        reqs = [
+            InferRequest(messages=[_image_msg()]),   # signal → vision, no embed
+            InferRequest(messages=[_image_msg()]),   # signal → vision, no embed
+            InferRequest(messages=[_user("hello")]), # embedding path
+        ]
+        await router.decide_batch(reqs)
+
+        assert len(batch_calls) == 1
+        assert batch_calls[0] == 1   # only the plain-text request needed embedding
+
+    @pytest.mark.asyncio
+    async def test_batch_populates_cache_for_decide(self, basic_config, local_backend, mock_provider):
+        router = Router(basic_config, {"loc": local_backend}, mock_provider)
+        await router.load_embeddings()
+
+        req = InferRequest(messages=[_user("unique batch query")])
+        await router.decide_batch([req])
+
+        # Subsequent single decide() should be a cache hit
+        d = await router.decide(req, trace=True)
+        assert d.trace.cache_hit is True
+
+    @pytest.mark.asyncio
+    async def test_batch_result_matches_single_decide(self, basic_config, local_backend, mock_provider):
+        router = Router(basic_config, {"loc": local_backend}, mock_provider)
+        await router.load_embeddings()
+
+        req = InferRequest(messages=[_user("hello world")])
+        single = await router.decide(req)
+        batch = await router.decide_batch([req])
+
+        assert batch[0].backend    == single.backend
+        assert batch[0].model_id   == single.model_id
+        assert batch[0].task_class == single.task_class
+        assert batch[0].strategy   == single.strategy
+
+    @pytest.mark.asyncio
+    async def test_batch_trace_cache_hit_flags(self, basic_config, local_backend, mock_provider):
+        router = Router(basic_config, {"loc": local_backend}, mock_provider)
+        await router.load_embeddings()
+
+        req_plain = InferRequest(messages=[_user("plain text")])
+        req_image = InferRequest(messages=[_image_msg()])
+
+        # First batch — plain text is a miss, image is signal (None)
+        results = await router.decide_batch([req_plain, req_image], trace=True)
+        assert results[0].trace.cache_hit is False
+        assert results[1].trace.cache_hit is None
+
+        # Second batch — plain text is now a hit
+        results2 = await router.decide_batch([req_plain], trace=True)
+        assert results2[0].trace.cache_hit is True
