@@ -1,7 +1,7 @@
 ## NOW
 
-**Working on:** Idle — round 5 complete, SIGNAL.md is RELEASE READY v0.1.9, published to PyPI
-**Last commit:** 3e2ce95 — feat: v0.1.9 — cache_stats(), estimated_cost_usd, scope_source Literal (round 5)
+**Working on:** Idle — round 5 complete, semver policy adopted, v0.1.9 on PyPI, pushed to GitHub
+**Last commit:** 6a2f2e2 — docs: adopt strict semver from v0.2.0
 **Next action:** On re-entry check `feedback/SIGNAL.md` — if FEEDBACK READY, read the named round file
 **Blocked on:** nothing
 **Open questions:** none
@@ -128,10 +128,10 @@
 **Open questions:** none
 **Tests:** pass 120/120
 
-### 2026-05-14 — Session 14 (3e2ce95)
+### 2026-05-14 — Session 14 (6a2f2e2)
 
-**Working on:** Round 5 ov_server feedback — cache_stats(), estimated_cost_usd, scope_source Literal (v0.1.9)
-**Last commit:** 3e2ce95 — feat: v0.1.9 — cache_stats(), estimated_cost_usd, scope_source Literal (round 5)
+**Working on:** Round 5 ov_server feedback (v0.1.9) + semver policy adoption
+**Last commit:** 6a2f2e2 — docs: adopt strict semver from v0.2.0
 **Next action:** On re-entry check feedback/SIGNAL.md — if FEEDBACK READY, read the named round file
 **Blocked on:** nothing
 **Open questions:** none
