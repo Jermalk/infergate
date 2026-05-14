@@ -1,7 +1,7 @@
 ## NOW
 
 **Working on:** Feedback loop idle — SIGNAL.md is RELEASE READY; integration milestone reached
-**Last commit:** (this session) — docs: session wrap — round 4 confirmation, integration complete
+**Last commit:** 2c27ccb — docs: session wrap — round 4 confirmation, integration complete
 **Next action:** On re-entry check `feedback/SIGNAL.md` — if FEEDBACK READY, read the named round file
 **Blocked on:** nothing
 **Open questions:** none
@@ -74,10 +74,10 @@
 **Open questions:** none
 **Tests:** pass 87/87
 
-### 2026-05-14 — Session 8 (TBD)
+### 2026-05-14 — Session 8 (2c27ccb)
 
 **Working on:** Round 4 ov_server feedback — confirmation round, no code changes; integration milestone reached
-**Last commit:** TBD — docs: session wrap — round 4 confirmation, integration complete
+**Last commit:** 2c27ccb — docs: session wrap — round 4 confirmation, integration complete
 **Next action:** Wait for feedback/SIGNAL.md Direction = FEEDBACK READY (round 5)
 **Blocked on:** nothing
 **Open questions:** none
