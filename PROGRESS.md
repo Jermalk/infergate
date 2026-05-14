@@ -1,7 +1,7 @@
 ## NOW
 
-**Working on:** Feature roadmap complete — all 5 steps shipped (v0.1.5–v0.1.8)
-**Last commit:** 11d116a — feat: step 3 — Router.decide_batch() with shared embed_batch() call (v0.1.8)
+**Working on:** Idle — roadmap complete, SIGNAL.md is RELEASE READY v0.1.8, repo on GitHub
+**Last commit:** 128de57 — docs: signal ov_server — RELEASE READY v0.1.8, proactive feature release notes
 **Next action:** On re-entry check `feedback/SIGNAL.md` — if FEEDBACK READY, read the named round file
 **Blocked on:** nothing
 **Open questions:** none
@@ -115,6 +115,15 @@
 **Working on:** Feature roadmap step 3 — Router.decide_batch() (v0.1.8)
 **Last commit:** 11d116a — feat: step 3 — Router.decide_batch() with shared embed_batch() call (v0.1.8)
 **Next action:** Check feedback/SIGNAL.md on re-entry
+**Blocked on:** nothing
+**Open questions:** none
+**Tests:** pass 120/120
+
+### 2026-05-14 — Session 13 (128de57)
+
+**Working on:** GitHub push (SSH setup, force push to Jermalk/infergate), SIGNAL.md updated to RELEASE READY v0.1.8 with addressed_05 release notes; discussed and rejected user-policy feature; full feature roadmap complete
+**Last commit:** 128de57 — docs: signal ov_server — RELEASE READY v0.1.8, proactive feature release notes
+**Next action:** On re-entry check feedback/SIGNAL.md — if FEEDBACK READY, read the named round file
 **Blocked on:** nothing
 **Open questions:** none
 **Tests:** pass 120/120

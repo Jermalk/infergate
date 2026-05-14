@@ -8,6 +8,26 @@
 
 **Rejected alternative:** Developing the reconnection inside this project with direct imports of ov_server internals.
 
+### 2026-05-14 — User policy object rejected
+
+**Decision:** No user policy object added to infergate. Per-user routing constraints (scope caps, tier limits) are the caller's responsibility, expressed by choosing whether to call `reselect()` and what parameters to pass.
+
+**Rationale:** infergate is a routing engine, not an authorization layer. Every policy dimension (scope, tier) is already controllable by the caller through existing API surface. A policy object would duplicate RouterConfig fields, require precedence rules for every combination, and drag identity/auth concepts into the library.
+
+**Rejected alternative:** `InferRequest.scope_override` and `InferRequest.max_tier` fields as a lightweight policy carrier.
+
+**Affects:** `src/infergate/types.py`, `src/infergate/router.py`
+
+### 2026-05-14 — Embed cache stores full routing result tuple
+
+**Decision:** `_EmbedCache` stores the full `(task_class, confidence, embedding)` tuple returned by `route_by_embedding()`, not just the raw embedding vector.
+
+**Rationale:** Simpler implementation — no need to expose or duplicate the centroid comparison logic. Centroids are stable for the Router's lifetime; if they change, the Router is typically recreated. The practical use case (throughput optimization for repeated queries) is fully served.
+
+**Rejected alternative:** Cache only the raw embedding vector and re-run centroid comparison on each cache hit, which would be more correct if centroids change at runtime but adds complexity with no real-world benefit.
+
+**Affects:** `src/infergate/router.py` (`_EmbedCache`, `_classify_vec`)
+
 **Affects:** CLAUDE.md scope, PROGRESS.md next actions, what gets committed to this repo.
 
 ---
