@@ -23,7 +23,7 @@ class RouteTrace:
     """Optional routing trace attached to RouteDecision when decide(trace=True) is used."""
 
     eliminated:   list[EliminatedCandidate] = field(default_factory=list)
-    scope_source: str = ""          # "class_override" | "cloud_directive" | "global"
+    scope_source: Literal["class_override", "cloud_directive", "global"] = "global"
     embedding_ms: float | None = None  # wall time of embed() call; None on signal/keyword path
     cache_hit:    bool | None = None  # True/False on embedding path; None when path not taken
 
@@ -68,6 +68,7 @@ class RouteDecision:
     confidence:    float           # cosine similarity score; 1.0 for signal-based routes
     prefer_loaded:    bool = False    # True when selection was influenced by in-memory model
     embedding:        list[float] | None = None  # request embedding vector, if computed
-    task_directive:   str | None = None  # matched task-class directive (e.g. "code"), or None
-    estimated_tokens: int = 0           # prompt token estimate (sum of text lengths // 4)
-    trace:            RouteTrace | None = None  # populated only when decide(trace=True)
+    task_directive:     str | None = None   # matched task-class directive (e.g. "code"), or None
+    estimated_tokens:   int = 0            # prompt token estimate (sum of text lengths // 4)
+    estimated_cost_usd: float | None = None  # winner.cost_per_1k_tokens * estimated_tokens / 1000; None when cost data absent
+    trace:              RouteTrace | None = None  # populated only when decide(trace=True)

@@ -25,6 +25,7 @@ from infergate.signals import text_content
 from infergate.types import InferRequest
 from infergate.types import NoModelAvailable
 from infergate.types import RouteStrategy
+from infergate.types import RouteTrace
 
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
@@ -345,35 +346,35 @@ class TestComputeCentroids:
 class TestSelectModel:
     def test_fastest_picks_fast_local(self, basic_config, local_backend, remote_backend):
         backends = {"loc": local_backend, "ovh": remote_backend}
-        bname, mid, _ = select_model("general", basic_config, backends, "local", "fastest")
+        bname, mid, _, _ = select_model("general", basic_config, backends, "local", "fastest")
         assert mid == "small-llm"
         assert bname == "loc"
 
     def test_balanced_picks_balanced_local(self, basic_config, local_backend, remote_backend):
         backends = {"loc": local_backend, "ovh": remote_backend}
-        bname, mid, _ = select_model("general", basic_config, backends, "local", "balanced")
+        bname, mid, _, _ = select_model("general", basic_config, backends, "local", "balanced")
         assert mid == "big-llm"
 
     def test_best_local_scope_excludes_remote(self, basic_config, local_backend, remote_backend):
         backends = {"loc": local_backend, "ovh": remote_backend}
-        bname, mid, _ = select_model("general", basic_config, backends, "local", "best")
+        bname, mid, _, _ = select_model("general", basic_config, backends, "local", "best")
         assert bname == "loc"
 
     def test_hybrid_scope_allows_remote(self, basic_config, local_backend, remote_backend):
         backends = {"loc": local_backend, "ovh": remote_backend}
-        bname, mid, _ = select_model("general", basic_config, backends, "hybrid", "best")
+        bname, mid, _, _ = select_model("general", basic_config, backends, "hybrid", "best")
         assert mid == "cloud-llm"
         assert bname == "ovh"
 
     def test_balanced_high_complexity_promotes_to_best(self, basic_config, local_backend, remote_backend):
         backends = {"loc": local_backend, "ovh": remote_backend}
-        _, mid, _ = select_model("general", basic_config, backends, "local", "balanced", complexity=0.8)
+        _, mid, _, _ = select_model("general", basic_config, backends, "local", "balanced", complexity=0.8)
         assert mid == "big-llm"
 
     def test_prefer_loaded_for_fastest(self, basic_config, local_backend, remote_backend):
         # small-llm is in loaded list
         backends = {"loc": local_backend, "ovh": remote_backend}
-        _, mid, prefer_loaded = select_model("general", basic_config, backends, "local", "fastest")
+        _, mid, prefer_loaded, _ = select_model("general", basic_config, backends, "local", "fastest")
         assert mid == "small-llm"
         assert prefer_loaded is True
 
@@ -392,12 +393,12 @@ class TestSelectModel:
 
     def test_unknown_task_class_falls_back_to_general(self, basic_config, local_backend, remote_backend):
         backends = {"loc": local_backend, "ovh": remote_backend}
-        bname, mid, _ = select_model("nonexistent", basic_config, backends, "local", "balanced")
+        bname, mid, _, _ = select_model("nonexistent", basic_config, backends, "local", "balanced")
         assert mid != ""  # falls back to general config
 
     def test_remote_scope_excludes_local(self, basic_config, local_backend, remote_backend):
         backends = {"loc": local_backend, "ovh": remote_backend}
-        bname, _, _ = select_model("general", basic_config, backends, "remote", "best")
+        bname, _, _, _ = select_model("general", basic_config, backends, "remote", "best")
         assert bname == "ovh"
 
     def test_ctx_limit_filters_model(self, remote_backend):
@@ -412,7 +413,7 @@ class TestSelectModel:
             },
         )
         backends = {"loc": tiny_backend}
-        bname, mid, _ = select_model("general", config, backends, "local", "fastest", estimated_tokens=200)
+        bname, mid, _, _ = select_model("general", config, backends, "local", "fastest", estimated_tokens=200)
         # all models filtered → fallback picks first available from backend (no ctx check in fallback)
         assert isinstance(bname, str)
         assert isinstance(mid, str)
@@ -435,7 +436,7 @@ class TestModalityFilter:
             },
         )
         backends = {"loc": local_backend}
-        bname, mid, _ = select_model("vision", config, backends, "local", "fastest",
+        bname, mid, _, _ = select_model("vision", config, backends, "local", "fastest",
                                      required_modality="vision")
         assert mid == "big-llm"
 
@@ -452,13 +453,13 @@ class TestModalityFilter:
             },
         )
         backends = {"loc": local_backend}
-        bname, mid, _ = select_model("vision", config, backends, "local", "fastest",
+        bname, mid, _, _ = select_model("vision", config, backends, "local", "fastest",
                                      required_modality="vision")
         assert mid == "small-llm"
 
     def test_no_modality_filter_when_none(self, basic_config, local_backend):
         backends = {"loc": local_backend}
-        bname, mid, _ = select_model("general", basic_config, backends, "local", "fastest",
+        bname, mid, _, _ = select_model("general", basic_config, backends, "local", "fastest",
                                      required_modality=None)
         assert mid != ""
 
@@ -478,12 +479,12 @@ class TestComplexityPromoteFast:
             router=RouterSettings(complexity_promote_fast_threshold=0.5),
         )
         backends = {"loc": local_backend}
-        _, mid, _ = select_model("general", config, backends, "local", "fastest", complexity=0.8)
+        _, mid, _, _ = select_model("general", config, backends, "local", "fastest", complexity=0.8)
         assert mid == "big-llm"  # promoted from fast → balanced
 
     def test_fast_not_promoted_when_threshold_none(self, basic_config, local_backend):
         backends = {"loc": local_backend}
-        _, mid, _ = select_model("general", basic_config, backends, "local", "fastest", complexity=0.9)
+        _, mid, _, _ = select_model("general", basic_config, backends, "local", "fastest", complexity=0.9)
         assert mid == "small-llm"  # threshold=None → no promotion
 
     def test_fast_not_promoted_when_below_threshold(self, local_backend):
@@ -500,14 +501,14 @@ class TestComplexityPromoteFast:
             router=RouterSettings(complexity_promote_fast_threshold=0.8),
         )
         backends = {"loc": local_backend}
-        _, mid, _ = select_model("general", config, backends, "local", "fastest", complexity=0.5)
+        _, mid, _, _ = select_model("general", config, backends, "local", "fastest", complexity=0.5)
         assert mid == "small-llm"  # below threshold → no promotion
 
 
 class TestForceTier:
     def test_force_tier_overrides_profile(self, basic_config, local_backend, remote_backend):
         backends = {"loc": local_backend, "ovh": remote_backend}
-        _, mid, _ = select_model("general", basic_config, backends, "hybrid", "fastest",
+        _, mid, _, _ = select_model("general", basic_config, backends, "hybrid", "fastest",
                                   force_tier="best")
         assert mid == "cloud-llm"
 
@@ -526,7 +527,7 @@ class TestForceTier:
         )
         backends = {"loc": local_backend}
         # force_tier="fastest" bypasses threshold even though complexity is high
-        _, mid, _ = select_model("general", config, backends, "local", "balanced",
+        _, mid, _, _ = select_model("general", config, backends, "local", "balanced",
                                   complexity=0.9, force_tier="fastest")
         assert mid == "small-llm"
 
@@ -801,6 +802,56 @@ class TestCostField:
         })
         assert cfg.task_classes["general"].models[0].cost_per_1k_tokens is None
 
+    @pytest.mark.asyncio
+    async def test_estimated_cost_usd_none_when_no_cost_data(self, basic_config, local_backend):
+        router = Router(basic_config, {"loc": local_backend})
+        d = await router.decide(InferRequest(messages=[_user("hello")]))
+        assert d.estimated_cost_usd is None
+
+    @pytest.mark.asyncio
+    async def test_estimated_cost_usd_computed_when_cost_set(self, local_backend):
+        from conftest import MockBackend
+        priced_backend = MockBackend(name="loc", models=["priced-llm"], loaded=[], is_local=True)
+        cfg = RouterConfig(
+            task_classes={
+                "general": TaskClassConfig(
+                    description="General",
+                    models=[ModelDescriptor(id="priced-llm", backend="loc", tier="fast",
+                                           cost_per_1k_tokens=0.002)],
+                ),
+            },
+            router=RouterSettings(),
+            provider_scope="local",
+            active_profile="fast",
+            profiles={"fast": {"model_preference": "fastest"}},
+        )
+        router = Router(cfg, {"loc": priced_backend})
+        # ~4 chars per token; 400 chars → 100 tokens
+        d = await router.decide(InferRequest(messages=[_user("x" * 400)]))
+        assert d.estimated_tokens == 100
+        assert d.estimated_cost_usd == pytest.approx(0.002 * 100 / 1000)
+
+    @pytest.mark.asyncio
+    async def test_estimated_cost_usd_none_when_tokens_zero(self, local_backend):
+        from conftest import MockBackend
+        priced_backend = MockBackend(name="loc", models=["priced-llm"], loaded=[], is_local=True)
+        cfg = RouterConfig(
+            task_classes={
+                "general": TaskClassConfig(
+                    description="General",
+                    models=[ModelDescriptor(id="priced-llm", backend="loc", tier="fast",
+                                           cost_per_1k_tokens=0.002)],
+                ),
+            },
+            router=RouterSettings(),
+            provider_scope="local",
+            active_profile="fast",
+            profiles={"fast": {"model_preference": "fastest"}},
+        )
+        router = Router(cfg, {"loc": priced_backend})
+        d = await router.decide(InferRequest(messages=[_user("")]))
+        assert d.estimated_cost_usd is None
+
 
 class TestRouteTrace:
     @pytest.mark.asyncio
@@ -815,6 +866,10 @@ class TestRouteTrace:
         router = Router(basic_config, {"loc": local_backend})
         d = await router.decide(InferRequest(messages=[_user("hello")]), trace=True)
         assert isinstance(d.trace, RouteTrace)
+
+    def test_scope_source_default_is_global(self):
+        trace = RouteTrace()
+        assert trace.scope_source == "global"
 
     @pytest.mark.asyncio
     async def test_scope_source_global(self, basic_config, local_backend):
@@ -1042,6 +1097,37 @@ class TestEmbedCache:
     def test_cache_size_default(self):
         cfg = RouterConfig.from_dict({"task_classes": {}})
         assert cfg.router.embedding_cache_size == 512
+
+    def test_cache_stats_initial(self, basic_config, local_backend):
+        router = Router(basic_config, {"loc": local_backend})
+        stats = router.cache_stats()
+        assert stats == {"hits": 0, "misses": 0, "size": 0, "capacity": 512}
+
+    def test_cache_stats_hit_miss_tracking(self, basic_config, local_backend):
+        from infergate.router import _EmbedCache
+        cache = _EmbedCache(maxsize=4)
+        cache.get("x")                        # miss
+        cache.put("x", ("general", 0.5, None))
+        cache.get("x")                        # hit
+        cache.get("y")                        # miss
+        assert cache._hits == 1
+        assert cache._misses == 2
+
+    def test_cache_stats_capacity_from_config(self, local_backend):
+        from infergate.config import RouterSettings
+        cfg = RouterConfig(task_classes={}, router=RouterSettings(embedding_cache_size=64))
+        router = Router(cfg, {"loc": local_backend})
+        assert router.cache_stats()["capacity"] == 64
+
+    def test_cache_stats_zero_capacity(self, basic_config, local_backend):
+        from infergate.config import RouterSettings
+        cfg = RouterConfig(task_classes={}, router=RouterSettings(embedding_cache_size=0))
+        router = Router(cfg, {"loc": local_backend})
+        from infergate.router import _EmbedCache
+        cache = _EmbedCache(maxsize=0)
+        cache.get("x")  # miss (disabled)
+        assert cache._misses == 1
+        assert cache._hits == 0
 
 
 class TestDecideBatch:

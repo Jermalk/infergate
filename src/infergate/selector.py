@@ -64,8 +64,8 @@ def select_model(
     force_tier: str | None = None,
     required_modality: Modality | None = None,
     _eliminated: list[EliminatedCandidate] | None = None,
-) -> tuple[str, str, bool]:
-    """Return (backend_name, model_id, prefer_loaded).
+) -> tuple[str, str, bool, float | None]:
+    """Return (backend_name, model_id, prefer_loaded, estimated_cost_usd).
 
     Selection order:
       1. Scope filter    — eliminate backends not eligible under effective_scope
@@ -172,15 +172,18 @@ def select_model(
     if chosen is None:
         return _fallback(backends, effective_scope, task_class)
 
-    return (chosen.backend, chosen.id, prefer_loaded)
+    cost_usd: float | None = None
+    if chosen.cost_per_1k_tokens is not None and estimated_tokens > 0:
+        cost_usd = chosen.cost_per_1k_tokens * estimated_tokens / 1000
+    return (chosen.backend, chosen.id, prefer_loaded, cost_usd)
 
 
-def _fallback(backends: dict[str, Backend], scope: str, task_class: str = "unknown") -> tuple[str, str, bool]:
+def _fallback(backends: dict[str, Backend], scope: str, task_class: str = "unknown") -> tuple[str, str, bool, float | None]:
     for b in backends.values():
         if not _scope_allows(b, scope):
             continue
         models = b.available_models()
         if models:
             log.error("select_model fallback — using first available '%s' on '%s'", models[0], b.name())
-            return (b.name(), models[0], False)
+            return (b.name(), models[0], False, None)
     raise NoModelAvailable(task_class, scope)

@@ -39,11 +39,15 @@ class _EmbedCache:
     def __init__(self, maxsize: int) -> None:
         self._maxsize = maxsize
         self._data: OrderedDict[str, _EmbedResult] = OrderedDict()
+        self._hits = 0
+        self._misses = 0
 
     def get(self, key: str) -> _EmbedResult | None:
         if self._maxsize == 0 or key not in self._data:
+            self._misses += 1
             return None
         self._data.move_to_end(key)
+        self._hits += 1
         return self._data[key]
 
     def put(self, key: str, value: _EmbedResult) -> None:
@@ -104,6 +108,16 @@ class Router:
         except Exception as exc:
             log.warning("[router] centroid computation failed (%s) — embedding routing disabled", exc)
             self._centroids = {}
+
+    def cache_stats(self) -> dict[str, int]:
+        """Embedding cache hit/miss counters and current occupancy.
+
+        Counters reset on Router construction. Use to tune embedding_cache_size
+        without enabling per-request trace overhead.
+        Returns: {"hits", "misses", "size", "capacity"}
+        """
+        c = self._embed_cache
+        return {"hits": c._hits, "misses": c._misses, "size": len(c), "capacity": c._maxsize}
 
     def _classify_vec(self, vec_list: list[float]) -> _EmbedResult:
         """Centroid comparison for a pre-encoded vector. Does not call the provider."""
@@ -205,7 +219,7 @@ class Router:
         ) // 4
 
         required_modality = "vision" if images_present else None
-        backend_name, model_id, prefer_loaded = select_model(
+        backend_name, model_id, prefer_loaded, estimated_cost_usd = select_model(
             task_class=task_class,
             config=self._config,
             backends=self._backends,
@@ -235,6 +249,7 @@ class Router:
             embedding=embedding,
             task_directive=directive,
             estimated_tokens=total_tokens,
+            estimated_cost_usd=estimated_cost_usd,
             trace=route_trace,
         )
 
@@ -363,7 +378,7 @@ class Router:
             total_tokens = sum(len(text_content(m)) for m in req.messages) // 4
             required_modality = "vision" if images_present else None
 
-            backend_name, model_id, prefer_loaded = select_model(
+            backend_name, model_id, prefer_loaded, estimated_cost_usd = select_model(
                 task_class=task_class,
                 config=self._config,
                 backends=self._backends,
@@ -393,6 +408,7 @@ class Router:
                 embedding=embedding,
                 task_directive=directive,
                 estimated_tokens=total_tokens,
+                estimated_cost_usd=estimated_cost_usd,
                 trace=route_trace,
             ))
 
@@ -416,7 +432,7 @@ class Router:
         profile = self._config.profiles.get(self._config.active_profile, {})
         profile_pref = profile.get("model_preference", "balanced")
 
-        backend_name, model_id, prefer_loaded = select_model(
+        backend_name, model_id, prefer_loaded, estimated_cost_usd = select_model(
             task_class=task_class,
             config=self._config,
             backends=self._backends,
@@ -434,4 +450,5 @@ class Router:
             strategy=RouteStrategy.RESELECT,
             confidence=1.0,
             prefer_loaded=prefer_loaded,
+            estimated_cost_usd=estimated_cost_usd,
         )
