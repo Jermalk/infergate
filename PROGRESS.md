@@ -1,11 +1,11 @@
 ## NOW
 
-**Working on:** Feature roadmap — step 1+5 done; next is step 4 (RouteTrace)
-**Last commit:** d84111c — feat: step 1+5 — RouteDecision.estimated_tokens, ModelDescriptor.cost_per_1k_tokens (v0.1.5)
-**Next action:** Implement RouteTrace in `src/infergate/types.py` and `src/infergate/router.py` (plan: plans/20260514_feature_roadmap.md § Step 4)
+**Working on:** Feature roadmap — steps 1+5, 4 done; next is step 2 (embedding LRU cache)
+**Last commit:** 628ae16 — feat: step 4 — RouteTrace with elimination reasons, scope_source, embedding_ms (v0.1.6)
+**Next action:** Implement embedding LRU cache in `src/infergate/router.py` + `RouterSettings.embedding_cache_size` in config.py (plan: plans/20260514_feature_roadmap.md § Step 2)
 **Blocked on:** nothing
 **Open questions:** none
-**Tests:** pass 93/93
+**Tests:** pass 104/104
 
 ---
 
@@ -91,3 +91,12 @@
 **Blocked on:** nothing
 **Open questions:** none
 **Tests:** pass 93/93
+
+### 2026-05-14 — Session 10 (628ae16)
+
+**Working on:** Feature roadmap step 4 — RouteTrace (elimination reasons, scope_source, embedding_ms) (v0.1.6)
+**Last commit:** 628ae16 — feat: step 4 — RouteTrace with elimination reasons, scope_source, embedding_ms (v0.1.6)
+**Next action:** Step 2 — embedding LRU cache in router.py + RouterSettings.embedding_cache_size
+**Blocked on:** nothing
+**Open questions:** none
+**Tests:** pass 104/104
