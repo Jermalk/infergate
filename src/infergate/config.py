@@ -10,8 +10,9 @@ from dataclasses import field
 from typing import Literal
 
 
-Scope = Literal["local", "remote", "hybrid"]
-Tier  = Literal["fast", "balanced", "best"]
+Scope    = Literal["local", "remote", "hybrid"]
+Tier     = Literal["fast", "balanced", "best"]
+Modality = Literal["text", "vision", "any"]
 
 
 @dataclass
@@ -19,9 +20,10 @@ class ModelDescriptor:
     """One model entry in a task class, bound to a named backend."""
 
     id:        str
-    backend:   str    # must match a registered Backend.name()
-    tier:      Tier   # controls preference order within select_model
-    ctx_limit: int = 32768
+    backend:   str      # must match a registered Backend.name()
+    tier:      Tier     # controls preference order within select_model
+    ctx_limit: int      = 32768
+    modality:  Modality = "text"  # "vision" for VLMs; "any" for multimodal-capable models
 
 
 @dataclass
@@ -43,6 +45,7 @@ class RouterSettings:
     long_context_tokens:      int   = 4000  # token count triggering the document class
     keywords:        dict[str, list[str]] = field(default_factory=dict)  # class → trigger phrases
     tools_task_class: str = "web_search"   # task class assigned when req.tools is non-empty
+    complexity_promote_fast_threshold: float | None = None  # None = disabled; set to promote fastest → balanced
 
 
 @dataclass
@@ -73,6 +76,7 @@ class RouterConfig:
             long_context_tokens=router_raw.get("long_context_tokens", 4000),
             keywords=router_raw.get("keywords", {}),
             tools_task_class=router_raw.get("tools_task_class", "web_search"),
+            complexity_promote_fast_threshold=router_raw.get("complexity_promote_fast_threshold"),
         )
 
         task_classes: dict[str, TaskClassConfig] = {}
@@ -83,6 +87,7 @@ class RouterConfig:
                     backend=m.get("backend", m.get("provider", "")),
                     tier=m.get("tier", "fast"),
                     ctx_limit=m.get("ctx_limit", m.get("max_context_tokens", 32768)),
+                    modality=m.get("modality", "text"),
                 )
                 for m in tc_raw.get("models", [])
             ]

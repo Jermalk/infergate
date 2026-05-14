@@ -418,6 +418,136 @@ class TestSelectModel:
         assert isinstance(mid, str)
 
 
+# ─── P3 gap coverage ─────────────────────────────────────────────────────────
+
+class TestModalityFilter:
+    def test_text_model_excluded_for_vision(self, local_backend):
+        config = RouterConfig(
+            task_classes={
+                "vision": TaskClassConfig(
+                    description="Vision",
+                    signal_only=True,
+                    models=[
+                        ModelDescriptor(id="small-llm", backend="loc", tier="fast", modality="text"),
+                        ModelDescriptor(id="big-llm",   backend="loc", tier="fast", modality="vision"),
+                    ],
+                ),
+            },
+        )
+        backends = {"loc": local_backend}
+        bname, mid, _ = select_model("vision", config, backends, "local", "fastest",
+                                     required_modality="vision")
+        assert mid == "big-llm"
+
+    def test_any_modality_satisfies_vision_requirement(self, local_backend):
+        config = RouterConfig(
+            task_classes={
+                "vision": TaskClassConfig(
+                    description="Vision",
+                    signal_only=True,
+                    models=[
+                        ModelDescriptor(id="small-llm", backend="loc", tier="fast", modality="any"),
+                    ],
+                ),
+            },
+        )
+        backends = {"loc": local_backend}
+        bname, mid, _ = select_model("vision", config, backends, "local", "fastest",
+                                     required_modality="vision")
+        assert mid == "small-llm"
+
+    def test_no_modality_filter_when_none(self, basic_config, local_backend):
+        backends = {"loc": local_backend}
+        bname, mid, _ = select_model("general", basic_config, backends, "local", "fastest",
+                                     required_modality=None)
+        assert mid != ""
+
+
+class TestComplexityPromoteFast:
+    def test_fast_promoted_to_balanced_when_threshold_met(self, local_backend):
+        config = RouterConfig(
+            task_classes={
+                "general": TaskClassConfig(
+                    description="General",
+                    models=[
+                        ModelDescriptor(id="small-llm", backend="loc", tier="fast"),
+                        ModelDescriptor(id="big-llm",   backend="loc", tier="balanced"),
+                    ],
+                ),
+            },
+            router=RouterSettings(complexity_promote_fast_threshold=0.5),
+        )
+        backends = {"loc": local_backend}
+        _, mid, _ = select_model("general", config, backends, "local", "fastest", complexity=0.8)
+        assert mid == "big-llm"  # promoted from fast → balanced
+
+    def test_fast_not_promoted_when_threshold_none(self, basic_config, local_backend):
+        backends = {"loc": local_backend}
+        _, mid, _ = select_model("general", basic_config, backends, "local", "fastest", complexity=0.9)
+        assert mid == "small-llm"  # threshold=None → no promotion
+
+    def test_fast_not_promoted_when_below_threshold(self, local_backend):
+        config = RouterConfig(
+            task_classes={
+                "general": TaskClassConfig(
+                    description="General",
+                    models=[
+                        ModelDescriptor(id="small-llm", backend="loc", tier="fast"),
+                        ModelDescriptor(id="big-llm",   backend="loc", tier="balanced"),
+                    ],
+                ),
+            },
+            router=RouterSettings(complexity_promote_fast_threshold=0.8),
+        )
+        backends = {"loc": local_backend}
+        _, mid, _ = select_model("general", config, backends, "local", "fastest", complexity=0.5)
+        assert mid == "small-llm"  # below threshold → no promotion
+
+
+class TestForceTier:
+    def test_force_tier_overrides_profile(self, basic_config, local_backend, remote_backend):
+        backends = {"loc": local_backend, "ovh": remote_backend}
+        _, mid, _ = select_model("general", basic_config, backends, "hybrid", "fastest",
+                                  force_tier="best")
+        assert mid == "cloud-llm"
+
+    def test_force_tier_skips_complexity_promotion(self, local_backend):
+        config = RouterConfig(
+            task_classes={
+                "general": TaskClassConfig(
+                    description="General",
+                    models=[
+                        ModelDescriptor(id="small-llm", backend="loc", tier="fast"),
+                        ModelDescriptor(id="big-llm",   backend="loc", tier="balanced"),
+                    ],
+                ),
+            },
+            router=RouterSettings(complexity_promote_fast_threshold=0.3),
+        )
+        backends = {"loc": local_backend}
+        # force_tier="fastest" bypasses threshold even though complexity is high
+        _, mid, _ = select_model("general", config, backends, "local", "balanced",
+                                  complexity=0.9, force_tier="fastest")
+        assert mid == "small-llm"
+
+    @pytest.mark.asyncio
+    async def test_force_tier_via_infer_request(self, basic_config, local_backend, remote_backend, mock_provider):
+        backends = {"loc": local_backend, "ovh": remote_backend}
+        cfg = RouterConfig(
+            task_classes=basic_config.task_classes,
+            router=basic_config.router,
+            provider_scope="hybrid",
+            active_profile="fast",
+            profiles={"fast": {"model_preference": "fastest"}},
+        )
+        router = Router(cfg, backends, mock_provider)
+        await router.load_embeddings()
+
+        req = InferRequest(messages=[_user("hello")], force_tier="best")
+        decision = await router.decide(req)
+        assert decision.model_id == "cloud-llm"
+
+
 # ─── Router integration ───────────────────────────────────────────────────────
 
 class TestRouterDecide:

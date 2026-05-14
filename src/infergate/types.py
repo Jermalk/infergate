@@ -23,10 +23,11 @@ class InferRequest:
     """Minimal request shape passed to the router. Does NOT proxy — caller handles execution."""
 
     messages:   list[dict]
-    model:      str | None       = None  # optional caller hint; router may override
-    max_tokens: int | None       = None
-    stream:     bool             = False
-    tools:      list[dict] | None = None  # presence triggers web_search signal
+    model:      str | None        = None  # optional caller hint; router may override
+    max_tokens: int | None        = None
+    stream:     bool              = False
+    tools:      list[dict] | None = None  # presence triggers tools_task_class signal
+    force_tier: str | None        = None  # override profile preference; skips complexity promotion
 
 
 @dataclass

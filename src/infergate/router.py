@@ -15,6 +15,7 @@ from infergate.selector import complexity_score
 from infergate.selector import select_model
 from infergate.signals import detect_signal
 from infergate.signals import has_cloud_directive
+from infergate.signals import has_images
 from infergate.signals import last_user_text
 from infergate.signals import task_class_directive
 from infergate.signals import text_content
@@ -136,6 +137,7 @@ class Router:
             len(text_content(m)) for m in request.messages
         ) // 4
 
+        required_modality = "vision" if has_images(request.messages) else None
         backend_name, model_id, prefer_loaded = select_model(
             task_class=task_class,
             config=self._config,
@@ -144,6 +146,8 @@ class Router:
             profile_pref=profile_pref,
             complexity=complexity_score(request.messages),
             estimated_tokens=total_tokens,
+            force_tier=request.force_tier,
+            required_modality=required_modality,
         )
 
         return RouteDecision(

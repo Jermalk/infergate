@@ -4,6 +4,7 @@ Model selection: complexity scoring and tier-based pick with prefer-loaded logic
 import logging
 import re
 
+from infergate.config import Modality
 from infergate.config import ModelDescriptor
 from infergate.config import RouterConfig
 from infergate.protocols import Backend
@@ -59,15 +60,20 @@ def select_model(
     profile_pref: str,
     complexity: float = 0.0,
     estimated_tokens: int = 0,
+    force_tier: str | None = None,
+    required_modality: Modality | None = None,
 ) -> tuple[str, str, bool]:
     """Return (backend_name, model_id, prefer_loaded).
 
     Selection order:
-      1. Scope filter   — eliminate backends not eligible under effective_scope
-      2. Context filter — skip models whose ctx_limit < estimated_tokens
-      3. Prefer-loaded  — for "fastest" pref, prefer warm fast-tier models first
-      4. Tier pick      — fastest → balanced → best
-      5. Complexity     — "balanced" + complexity > 0.65 promotes to "best"
+      1. Scope filter    — eliminate backends not eligible under effective_scope
+      2. Context filter  — skip models whose ctx_limit < estimated_tokens
+      3. Modality filter — skip models with incompatible modality when required_modality is set
+      4. Prefer-loaded   — for "fastest" pref, prefer warm fast-tier models first
+      5. Tier pick       — fastest → balanced → best
+      6. Complexity      — "balanced" + score > 0.65 promotes to "best";
+                           "fastest" + score > complexity_promote_fast_threshold promotes to "balanced"
+      7. force_tier      — when set, overrides profile pref and skips complexity promotion
 
     Falls back to the "general" task class when task_class has no config entry.
     Raises NoModelAvailable when no backend at all is reachable for the given scope.
@@ -92,12 +98,21 @@ def select_model(
             continue
         available.append(m)
 
+    if required_modality is not None:
+        available = [m for m in available if m.modality in (required_modality, "any")]
+
     if not available:
         return _fallback(backends, effective_scope, task_class)
 
-    pref = profile_pref
-    if pref == "balanced" and complexity > 0.65:
-        pref = "best"
+    if force_tier is not None:
+        pref = force_tier
+    else:
+        pref = profile_pref
+        if pref == "balanced" and complexity > 0.65:
+            pref = "best"
+        fast_thresh = config.router.complexity_promote_fast_threshold
+        if pref == "fastest" and fast_thresh is not None and complexity > fast_thresh:
+            pref = "balanced"
 
     all_loaded: set[str] = set()
     for b in backends.values():
