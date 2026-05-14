@@ -548,6 +548,80 @@ class TestForceTier:
         decision = await router.decide(req)
         assert decision.model_id == "cloud-llm"
 
+    @pytest.mark.asyncio
+    async def test_force_tier_kwarg_on_decide_overrides_profile(self, local_backend):
+        # Profile says fastest; force_tier="best" on decide() should pick best-tier model.
+        from conftest import MockBackend
+        backend = MockBackend(name="loc", models=["fast-llm", "best-llm"], loaded=[], is_local=True)
+        cfg = RouterConfig(
+            task_classes={
+                "general": TaskClassConfig(
+                    description="General",
+                    models=[
+                        ModelDescriptor(id="fast-llm", backend="loc", tier="fast"),
+                        ModelDescriptor(id="best-llm", backend="loc", tier="best"),
+                    ],
+                ),
+            },
+            router=RouterSettings(),
+            provider_scope="local",
+            active_profile="fast",
+            profiles={"fast": {"model_preference": "fastest"}},
+        )
+        router = Router(cfg, {"loc": backend})
+        d = await router.decide(InferRequest(messages=[_user("hello")]), force_tier="best")
+        assert d.model_id == "best-llm"
+
+    @pytest.mark.asyncio
+    async def test_force_tier_kwarg_takes_precedence_over_request_force_tier(self, local_backend):
+        # decide(force_tier="best") overrides request.force_tier="fastest".
+        from conftest import MockBackend
+        backend = MockBackend(name="loc", models=["fast-llm", "best-llm"], loaded=[], is_local=True)
+        cfg = RouterConfig(
+            task_classes={
+                "general": TaskClassConfig(
+                    description="General",
+                    models=[
+                        ModelDescriptor(id="fast-llm", backend="loc", tier="fast"),
+                        ModelDescriptor(id="best-llm", backend="loc", tier="best"),
+                    ],
+                ),
+            },
+            router=RouterSettings(),
+            provider_scope="local",
+            active_profile="fast",
+            profiles={"fast": {"model_preference": "fastest"}},
+        )
+        router = Router(cfg, {"loc": backend})
+        req = InferRequest(messages=[_user("hello")], force_tier="fastest")
+        d = await router.decide(req, force_tier="best")
+        assert d.model_id == "best-llm"
+
+    @pytest.mark.asyncio
+    async def test_force_tier_none_falls_back_to_request_force_tier(self, local_backend):
+        # decide(force_tier=None) still respects request.force_tier.
+        from conftest import MockBackend
+        backend = MockBackend(name="loc", models=["fast-llm", "best-llm"], loaded=[], is_local=True)
+        cfg = RouterConfig(
+            task_classes={
+                "general": TaskClassConfig(
+                    description="General",
+                    models=[
+                        ModelDescriptor(id="fast-llm", backend="loc", tier="fast"),
+                        ModelDescriptor(id="best-llm", backend="loc", tier="best"),
+                    ],
+                ),
+            },
+            router=RouterSettings(),
+            provider_scope="local",
+            active_profile="fast",
+            profiles={"fast": {"model_preference": "fastest"}},
+        )
+        router = Router(cfg, {"loc": backend})
+        req = InferRequest(messages=[_user("hello")], force_tier="best")
+        d = await router.decide(req, force_tier=None)
+        assert d.model_id == "best-llm"
+
 
 # ─── Router integration ───────────────────────────────────────────────────────
 

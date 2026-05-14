@@ -133,7 +133,13 @@ class Router:
             best_class = "general"
         return (best_class, best_score, vec.tolist())
 
-    async def decide(self, request: InferRequest, *, trace: bool = False) -> RouteDecision:
+    async def decide(
+        self,
+        request: InferRequest,
+        *,
+        trace: bool = False,
+        force_tier: str | None = None,
+    ) -> RouteDecision:
         """Main routing entry point. Returns RouteDecision without executing the request.
 
         Pipeline:
@@ -143,6 +149,9 @@ class Router:
           4. Scope resolution — per-class override > #ovh/#cloud directive > global scope
           5. Model selection  — prefer loaded → tier → complexity → context limit check
 
+        force_tier: when set, overrides the active profile's model_preference for this call.
+        Takes precedence over request.force_tier. Use at the adapter level to apply runtime
+        profile state without modifying InferRequest (e.g. ov_server's /admin/profile endpoint).
         Pass trace=True to populate RouteDecision.trace with elimination reasons and timing.
         """
         settings = self._config.router
@@ -227,7 +236,7 @@ class Router:
             profile_pref=profile_pref,
             complexity=complexity_score(request.messages),
             estimated_tokens=total_tokens,
-            force_tier=request.force_tier,
+            force_tier=force_tier if force_tier is not None else request.force_tier,
             required_modality=required_modality,
             _eliminated=eliminated,
         )
@@ -257,6 +266,7 @@ class Router:
         self,
         requests: list[InferRequest],
         trace: bool = False,
+        force_tier: str | None = None,
     ) -> list[RouteDecision]:
         """Route a batch of requests sharing a single embed_batch() call.
 
@@ -386,7 +396,7 @@ class Router:
                 profile_pref=profile_pref,
                 complexity=complexity_score(req.messages),
                 estimated_tokens=total_tokens,
-                force_tier=req.force_tier,
+                force_tier=force_tier if force_tier is not None else req.force_tier,
                 required_modality=required_modality,
                 _eliminated=eliminated,
             )
