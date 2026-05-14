@@ -3,6 +3,7 @@ Router — public entry point. Wires signal detection, embedding routing, and mo
 """
 import logging
 import re
+import time
 
 import numpy as np
 
@@ -19,9 +20,11 @@ from infergate.signals import has_images
 from infergate.signals import last_user_text
 from infergate.signals import task_class_directive
 from infergate.signals import text_content
+from infergate.types import EliminatedCandidate
 from infergate.types import InferRequest
 from infergate.types import RouteDecision
 from infergate.types import RouteStrategy
+from infergate.types import RouteTrace
 
 
 log = logging.getLogger("infergate")
@@ -71,7 +74,7 @@ class Router:
             log.warning("[router] centroid computation failed (%s) — embedding routing disabled", exc)
             self._centroids = {}
 
-    async def decide(self, request: InferRequest) -> RouteDecision:
+    async def decide(self, request: InferRequest, *, trace: bool = False) -> RouteDecision:
         """Main routing entry point. Returns RouteDecision without executing the request.
 
         Pipeline:
@@ -80,8 +83,11 @@ class Router:
           3. Embedding routing — cosine similarity against task-class centroids
           4. Scope resolution — per-class override > #ovh/#cloud directive > global scope
           5. Model selection  — prefer loaded → tier → complexity → context limit check
+
+        Pass trace=True to populate RouteDecision.trace with elimination reasons and timing.
         """
         settings = self._config.router
+        eliminated: list[EliminatedCandidate] | None = [] if trace else None
 
         # ── Stage 1 & 2: signal detection ─────────────────────────────────────
         # Directive check is separated from detect_signal so we can assign the
@@ -98,17 +104,21 @@ class Router:
             strategy = RouteStrategy.SIGNAL if signal_class else None
         confidence = 1.0
         embedding: list[float] | None = None
+        embedding_ms: float | None = None
 
         # ── Stage 3: embedding classification (slow path) ─────────────────────
         if task_class is None:
             if self._provider and self._centroids:
                 query = last_user_text(request.messages)
+                _t0 = time.perf_counter() if trace else 0.0
                 task_class, confidence, embedding = await route_by_embedding(
                     query,
                     self._centroids,
                     self._provider,
                     settings.embedding_min_confidence,
                 )
+                if trace:
+                    embedding_ms = (time.perf_counter() - _t0) * 1000
                 strategy = (
                     RouteStrategy.EMBEDDING
                     if confidence >= settings.embedding_min_confidence
@@ -123,10 +133,13 @@ class Router:
         cls_cfg = self._config.task_classes.get(task_class)
         if cls_cfg and cls_cfg.scope_override:
             effective_scope = cls_cfg.scope_override
+            scope_source = "class_override"
         elif has_cloud_directive(request.messages):
             effective_scope = "remote"
+            scope_source = "cloud_directive"
         else:
             effective_scope = self._config.provider_scope
+            scope_source = "global"
 
         # ── Stage 5: model selection ───────────────────────────────────────────
         profile = self._config.profiles.get(self._config.active_profile, {})
@@ -149,7 +162,14 @@ class Router:
             estimated_tokens=total_tokens,
             force_tier=request.force_tier,
             required_modality=required_modality,
+            _eliminated=eliminated,
         )
+
+        route_trace = RouteTrace(
+            eliminated=eliminated,
+            scope_source=scope_source,
+            embedding_ms=embedding_ms,
+        ) if trace else None
 
         return RouteDecision(
             backend=backend_name,
@@ -161,6 +181,7 @@ class Router:
             embedding=embedding,
             task_directive=directive,
             estimated_tokens=total_tokens,
+            trace=route_trace,
         )
 
     def reselect(

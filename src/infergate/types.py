@@ -1,5 +1,30 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
+from dataclasses import field
 from enum import Enum
+from typing import Literal
+
+
+EliminationReason = Literal["no_backend", "scope", "unavailable", "ctx_limit", "modality"]
+
+
+@dataclass
+class EliminatedCandidate:
+    """One model that was considered and rejected during select_model()."""
+
+    model_id: str
+    backend:  str
+    reason:   EliminationReason
+
+
+@dataclass
+class RouteTrace:
+    """Optional routing trace attached to RouteDecision when decide(trace=True) is used."""
+
+    eliminated:   list[EliminatedCandidate] = field(default_factory=list)
+    scope_source: str = ""          # "class_override" | "cloud_directive" | "global"
+    embedding_ms: float | None = None  # wall time of embed() call; None on signal/keyword path
 
 
 class NoModelAvailable(Exception):
@@ -44,3 +69,4 @@ class RouteDecision:
     embedding:        list[float] | None = None  # request embedding vector, if computed
     task_directive:   str | None = None  # matched task-class directive (e.g. "code"), or None
     estimated_tokens: int = 0           # prompt token estimate (sum of text lengths // 4)
+    trace:            RouteTrace | None = None  # populated only when decide(trace=True)

@@ -800,3 +800,157 @@ class TestCostField:
             }
         })
         assert cfg.task_classes["general"].models[0].cost_per_1k_tokens is None
+
+
+class TestRouteTrace:
+    @pytest.mark.asyncio
+    async def test_trace_false_gives_none(self, basic_config, local_backend):
+        router = Router(basic_config, {"loc": local_backend})
+        d = await router.decide(InferRequest(messages=[_user("hello")]))
+        assert d.trace is None
+
+    @pytest.mark.asyncio
+    async def test_trace_true_gives_route_trace(self, basic_config, local_backend):
+        from infergate.types import RouteTrace
+        router = Router(basic_config, {"loc": local_backend})
+        d = await router.decide(InferRequest(messages=[_user("hello")]), trace=True)
+        assert isinstance(d.trace, RouteTrace)
+
+    @pytest.mark.asyncio
+    async def test_scope_source_global(self, basic_config, local_backend):
+        router = Router(basic_config, {"loc": local_backend})
+        d = await router.decide(InferRequest(messages=[_user("hello")]), trace=True)
+        assert d.trace.scope_source == "global"
+
+    @pytest.mark.asyncio
+    async def test_scope_source_cloud_directive(self, basic_config, local_backend, remote_backend):
+        router = Router(basic_config, {"loc": local_backend, "ovh": remote_backend})
+        d = await router.decide(InferRequest(messages=[_user("help #ovh")]), trace=True)
+        assert d.trace.scope_source == "cloud_directive"
+
+    @pytest.mark.asyncio
+    async def test_scope_source_class_override(self, local_backend):
+        cfg = RouterConfig(
+            task_classes={
+                "general": TaskClassConfig(
+                    description="General",
+                    models=[ModelDescriptor(id="small-llm", backend="loc", tier="fast")],
+                    scope_override="local",
+                ),
+            },
+            router=RouterSettings(),
+            provider_scope="local",
+            active_profile="fast",
+            profiles={"fast": {"model_preference": "fastest"}},
+        )
+        router = Router(cfg, {"loc": local_backend})
+        d = await router.decide(InferRequest(messages=[_user("hello")]), trace=True)
+        assert d.trace.scope_source == "class_override"
+
+    @pytest.mark.asyncio
+    async def test_eliminated_scope_reason(self, basic_config, local_backend, remote_backend):
+        # provider_scope=local → remote backend models eliminated with "scope"
+        router = Router(basic_config, {"loc": local_backend, "ovh": remote_backend})
+        d = await router.decide(
+            InferRequest(messages=[_user("fix this #code")]), trace=True
+        )
+        reasons = {e.reason for e in d.trace.eliminated}
+        assert "scope" in reasons
+        scoped_out = [e for e in d.trace.eliminated if e.reason == "scope"]
+        assert all(e.backend == "ovh" for e in scoped_out)
+
+    @pytest.mark.asyncio
+    async def test_eliminated_no_backend_reason(self, local_backend):
+        # Config references a backend "ghost" that is not registered
+        cfg = RouterConfig(
+            task_classes={
+                "general": TaskClassConfig(
+                    description="General",
+                    models=[
+                        ModelDescriptor(id="ghost-model", backend="ghost", tier="fast"),
+                        ModelDescriptor(id="small-llm",   backend="loc",   tier="fast"),
+                    ],
+                ),
+            },
+            router=RouterSettings(),
+            provider_scope="local",
+            active_profile="fast",
+            profiles={"fast": {"model_preference": "fastest"}},
+        )
+        router = Router(cfg, {"loc": local_backend})
+        d = await router.decide(InferRequest(messages=[_user("hello")]), trace=True)
+        assert any(e.reason == "no_backend" and e.model_id == "ghost-model"
+                   for e in d.trace.eliminated)
+
+    @pytest.mark.asyncio
+    async def test_eliminated_ctx_limit_reason(self, local_backend):
+        cfg = RouterConfig(
+            task_classes={
+                "general": TaskClassConfig(
+                    description="General",
+                    models=[
+                        ModelDescriptor(id="small-llm", backend="loc", tier="fast", ctx_limit=10),
+                        ModelDescriptor(id="big-llm",   backend="loc", tier="best", ctx_limit=32768),
+                    ],
+                ),
+            },
+            router=RouterSettings(),
+            provider_scope="local",
+            active_profile="best",
+            profiles={"best": {"model_preference": "best"}},
+        )
+        router = Router(cfg, {"loc": local_backend})
+        long_req = InferRequest(messages=[_user("word " * 200)])
+        d = await router.decide(long_req, trace=True)
+        assert any(e.reason == "ctx_limit" and e.model_id == "small-llm"
+                   for e in d.trace.eliminated)
+        assert d.model_id == "big-llm"
+
+    @pytest.mark.asyncio
+    async def test_eliminated_modality_reason(self, local_backend):
+        from conftest import MockBackend
+        vision_backend = MockBackend(
+            name="loc",
+            models=["text-model", "vision-model"],
+            loaded=[],
+            is_local=True,
+        )
+        cfg = RouterConfig(
+            task_classes={
+                "vision": TaskClassConfig(
+                    description="Vision tasks",
+                    models=[
+                        ModelDescriptor(id="text-model",   backend="loc", tier="fast", modality="text"),
+                        ModelDescriptor(id="vision-model", backend="loc", tier="fast", modality="vision"),
+                    ],
+                    signal_only=True,
+                ),
+            },
+            router=RouterSettings(),
+            provider_scope="local",
+            active_profile="fast",
+            profiles={"fast": {"model_preference": "fastest"}},
+        )
+        router = Router(cfg, {"loc": vision_backend})
+        d = await router.decide(InferRequest(messages=[_image_msg()]), trace=True)
+        assert any(e.reason == "modality" and e.model_id == "text-model"
+                   for e in d.trace.eliminated)
+        assert d.model_id == "vision-model"
+
+    @pytest.mark.asyncio
+    async def test_embedding_ms_none_on_signal_path(self, basic_config, local_backend, mock_provider):
+        router = Router(basic_config, {"loc": local_backend}, mock_provider)
+        await router.load_embeddings()
+        d = await router.decide(InferRequest(messages=[_image_msg()]), trace=True)
+        assert d.strategy == RouteStrategy.SIGNAL
+        assert d.trace.embedding_ms is None
+
+    @pytest.mark.asyncio
+    async def test_embedding_ms_set_on_embedding_path(self, basic_config, local_backend, mock_provider):
+        router = Router(basic_config, {"loc": local_backend}, mock_provider)
+        await router.load_embeddings()
+        # plain message with no signal triggers embedding path
+        d = await router.decide(InferRequest(messages=[_user("hello world")]), trace=True)
+        assert d.strategy in (RouteStrategy.EMBEDDING, RouteStrategy.FALLBACK)
+        assert d.trace.embedding_ms is not None
+        assert d.trace.embedding_ms >= 0.0

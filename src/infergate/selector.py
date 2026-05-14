@@ -9,6 +9,7 @@ from infergate.config import ModelDescriptor
 from infergate.config import RouterConfig
 from infergate.protocols import Backend
 from infergate.signals import last_user_text
+from infergate.types import EliminatedCandidate
 from infergate.types import NoModelAvailable
 
 
@@ -62,6 +63,7 @@ def select_model(
     estimated_tokens: int = 0,
     force_tier: str | None = None,
     required_modality: Modality | None = None,
+    _eliminated: list[EliminatedCandidate] | None = None,
 ) -> tuple[str, str, bool]:
     """Return (backend_name, model_id, prefer_loaded).
 
@@ -87,19 +89,32 @@ def select_model(
     for m in all_models:
         backend = backends.get(m.backend)
         if backend is None:
+            if _eliminated is not None:
+                _eliminated.append(EliminatedCandidate(m.id, m.backend, "no_backend"))
             continue
         if not _scope_allows(backend, effective_scope):
+            if _eliminated is not None:
+                _eliminated.append(EliminatedCandidate(m.id, m.backend, "scope"))
             continue
         if m.id not in backend.available_models():
             log.warning("'%s' not available on backend '%s' — skipped", m.id, m.backend)
+            if _eliminated is not None:
+                _eliminated.append(EliminatedCandidate(m.id, m.backend, "unavailable"))
             continue
         if estimated_tokens and estimated_tokens > m.ctx_limit:
             log.info("'%s' ctx_limit %d < prompt ~%d — skipped", m.id, m.ctx_limit, estimated_tokens)
+            if _eliminated is not None:
+                _eliminated.append(EliminatedCandidate(m.id, m.backend, "ctx_limit"))
             continue
         available.append(m)
 
     if required_modality is not None:
-        available = [m for m in available if m.modality in (required_modality, "any")]
+        kept = {m.id for m in available if m.modality in (required_modality, "any")}
+        if _eliminated is not None:
+            for m in available:
+                if m.id not in kept:
+                    _eliminated.append(EliminatedCandidate(m.id, m.backend, "modality"))
+        available = [m for m in available if m.id in kept]
 
     if not available:
         return _fallback(backends, effective_scope, task_class)
