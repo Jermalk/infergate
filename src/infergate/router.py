@@ -2,6 +2,7 @@
 Router — public entry point. Wires signal detection, embedding routing, and model selection.
 """
 import logging
+import re
 
 import numpy as np
 
@@ -36,6 +37,11 @@ class Router:
         self._backends = backends
         self._provider = embedding_provider
         self._centroids: dict[str, np.ndarray] = {}
+        task_names = sorted(config.task_classes.keys())
+        self._task_directive_re: re.Pattern | None = re.compile(
+            r'#(' + '|'.join(re.escape(k) for k in task_names) + r')\b',
+            re.IGNORECASE,
+        ) if task_names else None
 
     @classmethod
     def from_config(
@@ -80,7 +86,7 @@ class Router:
         # Directive check is separated from detect_signal so we can assign the
         # correct RouteStrategy (KEYWORD vs SIGNAL) without detect_signal needing
         # to know about strategy types.
-        directive = task_class_directive(request.messages)
+        directive = task_class_directive(request.messages, self._task_directive_re)
         if directive:
             task_class: str | None = directive
             strategy: RouteStrategy | None = RouteStrategy.KEYWORD

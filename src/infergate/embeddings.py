@@ -8,7 +8,6 @@ import numpy as np
 
 from infergate.config import TaskClassConfig
 from infergate.protocols import EmbeddingProvider
-from infergate.signals import _SIGNAL_ONLY_CLASSES
 
 
 async def compute_centroids(
@@ -21,7 +20,7 @@ async def compute_centroids(
     """
     centroids: dict[str, np.ndarray] = {}
     for name, cls_cfg in task_classes.items():
-        if name in _SIGNAL_ONLY_CLASSES:
+        if cls_cfg.signal_only:
             continue
         texts: list[str] = []
         if cls_cfg.description:

@@ -23,6 +23,7 @@ from infergate.signals import has_images
 from infergate.signals import task_class_directive
 from infergate.signals import text_content
 from infergate.types import InferRequest
+from infergate.types import NoModelAvailable
 from infergate.types import RouteStrategy
 
 
@@ -144,6 +145,10 @@ class TestDetectSignal:
     def test_tools_returns_web_search(self):
         req = _make_req([_user("lookup")], tools=[{"type": "function"}])
         assert detect_signal(req, _settings()) == "web_search"
+
+    def test_tools_custom_task_class(self):
+        req = _make_req([_user("lookup")], tools=[{"type": "function"}])
+        assert detect_signal(req, _settings(tools_task_class="agent")) == "agent"
 
     def test_long_context_returns_document(self):
         long_text = "word " * 600  # ~150 tokens estimate
@@ -289,11 +294,21 @@ class TestComputeCentroids:
     @pytest.mark.asyncio
     async def test_skips_signal_only_classes(self, mock_provider):
         task_classes = {
-            "vision":  TaskClassConfig(description="Images"),
+            "vision":  TaskClassConfig(description="Images", signal_only=True),
             "code":    TaskClassConfig(description="Code tasks"),
         }
         result = await compute_centroids(task_classes, mock_provider)
         assert "vision" not in result
+        assert "code" in result
+
+    @pytest.mark.asyncio
+    async def test_signal_only_false_is_included(self, mock_provider):
+        task_classes = {
+            "vision":  TaskClassConfig(description="Images", signal_only=False),
+            "code":    TaskClassConfig(description="Code tasks"),
+        }
+        result = await compute_centroids(task_classes, mock_provider)
+        assert "vision" in result
         assert "code" in result
 
     @pytest.mark.asyncio
@@ -365,9 +380,15 @@ class TestSelectModel:
     def test_unavailable_model_skipped(self, basic_config, remote_backend):
         no_models = MockBackend("loc", models=[], is_local=True)
         backends = {"loc": no_models, "ovh": remote_backend}
-        bname, mid, _ = select_model("code", basic_config, backends, "local", "fastest")
-        # local has no models and scope is "local" → fallback returns empty
-        assert bname == "" and mid == ""
+        # scope="local" filters out ovh; no local models → NoModelAvailable
+        with pytest.raises(NoModelAvailable):
+            select_model("code", basic_config, backends, "local", "fastest")
+
+    def test_no_backends_raises_no_model_available(self, basic_config):
+        with pytest.raises(NoModelAvailable) as exc_info:
+            select_model("general", basic_config, {}, "local", "balanced")
+        assert exc_info.value.task_class == "general"
+        assert exc_info.value.scope == "local"
 
     def test_unknown_task_class_falls_back_to_general(self, basic_config, local_backend, remote_backend):
         backends = {"loc": local_backend, "ovh": remote_backend}
@@ -473,6 +494,33 @@ class TestRouterDecide:
         req = InferRequest(messages=[_image_msg()] + [_user("#general")])
         decision = await router.decide(req)
         assert decision.task_class == "general"
+        assert decision.strategy == RouteStrategy.KEYWORD
+
+    @pytest.mark.asyncio
+    async def test_custom_task_class_directive(self, local_backend, mock_provider):
+        config = RouterConfig(
+            task_classes={
+                "sql": TaskClassConfig(
+                    description="SQL queries and database operations",
+                    models=[ModelDescriptor(id="small-llm", backend="loc", tier="fast")],
+                ),
+                "general": TaskClassConfig(
+                    description="General conversation",
+                    models=[ModelDescriptor(id="small-llm", backend="loc", tier="fast")],
+                ),
+            },
+            router=RouterSettings(),
+            provider_scope="local",
+            active_profile="fast",
+            profiles={"fast": {"model_preference": "fastest"}},
+        )
+        backends = {"loc": local_backend}
+        router = Router(config, backends, mock_provider)
+        await router.load_embeddings()
+
+        req = InferRequest(messages=[_user("run this #sql")])
+        decision = await router.decide(req)
+        assert decision.task_class == "sql"
         assert decision.strategy == RouteStrategy.KEYWORD
 
     @pytest.mark.asyncio

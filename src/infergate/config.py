@@ -32,6 +32,7 @@ class TaskClassConfig:
     models:         list[ModelDescriptor] = field(default_factory=list)
     examples:       list[str]             = field(default_factory=list)
     scope_override: Scope | None = None   # overrides global provider_scope for this class
+    signal_only:    bool         = False  # True → skip centroid; class reached only via signal
 
 
 @dataclass
@@ -40,7 +41,8 @@ class RouterSettings:
 
     embedding_min_confidence: float = 0.72  # cosine threshold; below → fall back to general
     long_context_tokens:      int   = 4000  # token count triggering the document class
-    keywords: dict[str, list[str]] = field(default_factory=dict)  # class → trigger phrases
+    keywords:        dict[str, list[str]] = field(default_factory=dict)  # class → trigger phrases
+    tools_task_class: str = "web_search"   # task class assigned when req.tools is non-empty
 
 
 @dataclass
@@ -70,6 +72,7 @@ class RouterConfig:
             ),
             long_context_tokens=router_raw.get("long_context_tokens", 4000),
             keywords=router_raw.get("keywords", {}),
+            tools_task_class=router_raw.get("tools_task_class", "web_search"),
         )
 
         task_classes: dict[str, TaskClassConfig] = {}
@@ -88,6 +91,7 @@ class RouterConfig:
                 models=models,
                 examples=tc_raw.get("examples", []),
                 scope_override=tc_raw.get("scope_override"),
+                signal_only=tc_raw.get("signal_only", False),
             )
 
         return cls(

@@ -2,6 +2,15 @@ from dataclasses import dataclass
 from enum import Enum
 
 
+class NoModelAvailable(Exception):
+    """Raised by select_model when no backend has a reachable model for the given scope."""
+
+    def __init__(self, task_class: str, scope: str) -> None:
+        super().__init__(f"No model available for task_class='{task_class}' scope='{scope}'")
+        self.task_class = task_class
+        self.scope = scope
+
+
 class RouteStrategy(str, Enum):
     SIGNAL    = "signal"            # image / tools / long-context / keyword match
     KEYWORD   = "keyword"           # explicit #code / #document / #general directive

@@ -8,11 +8,9 @@ from infergate.types import InferRequest
 
 
 _CLOUD_DIRECTIVE_RE = re.compile(r'#(ovh|cloud)\b', re.IGNORECASE)
-_TASK_DIRECTIVE_RE  = re.compile(r'#(code|document|general)\b', re.IGNORECASE)
-
-# Classes that are only reachable via signal detection, never via embedding routing.
-# compute_centroids() skips these so they don't pollute the similarity space.
-_SIGNAL_ONLY_CLASSES: frozenset[str] = frozenset({"vision", "web_search"})
+# Default pattern used when task_class_directive is called without a compiled pattern.
+# Deployments that add custom task classes should pass a Router-built pattern instead.
+_DEFAULT_TASK_DIRECTIVE_RE = re.compile(r'#(code|document|general)\b', re.IGNORECASE)
 
 
 def text_content(msg: dict) -> str:
@@ -49,13 +47,19 @@ def has_images(messages: list[dict]) -> bool:
     return False
 
 
-def task_class_directive(messages: list[dict]) -> str | None:
-    """Return task_class if the last user message contains a #code, #document, or #general tag.
+def task_class_directive(
+    messages: list[dict],
+    pattern: re.Pattern | None = None,
+) -> str | None:
+    """Return task_class if the last user message contains a #<task_class> tag.
 
-    Only the last user message is checked; earlier turns are ignored so the
-    directive applies to the current request, not a historical one.
+    pattern should be a compiled regex built from the live task class names (built
+    once at Router init). When None, falls back to the hardcoded default set
+    {code, document, general} for backward compatibility.
+    Only the last user message is checked.
     """
-    m = _TASK_DIRECTIVE_RE.search(last_user_text(messages))
+    p = pattern if pattern is not None else _DEFAULT_TASK_DIRECTIVE_RE
+    m = p.search(last_user_text(messages))
     return m.group(1).lower() if m else None
 
 
@@ -85,7 +89,7 @@ def detect_signal(req: InferRequest, settings: RouterSettings) -> str | None:
         return "vision"
 
     if req.tools:
-        return "web_search"
+        return settings.tools_task_class
 
     total_tokens = sum(
         len(text_content(m)) for m in req.messages if m.get("role") != "system"

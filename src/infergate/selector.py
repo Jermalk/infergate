@@ -8,6 +8,7 @@ from infergate.config import ModelDescriptor
 from infergate.config import RouterConfig
 from infergate.protocols import Backend
 from infergate.signals import last_user_text
+from infergate.types import NoModelAvailable
 
 
 log = logging.getLogger("infergate")
@@ -69,12 +70,11 @@ def select_model(
       5. Complexity     — "balanced" + complexity > 0.65 promotes to "best"
 
     Falls back to the "general" task class when task_class has no config entry.
-    Returns ("", "", False) only when no backend at all is reachable; the caller
-    is expected to translate this into a 503 / unavailable error.
+    Raises NoModelAvailable when no backend at all is reachable for the given scope.
     """
     cls_cfg = config.task_classes.get(task_class) or config.task_classes.get("general")
     if cls_cfg is None:
-        return _fallback(backends, effective_scope)
+        return _fallback(backends, effective_scope, task_class)
     all_models: list[ModelDescriptor] = cls_cfg.models
 
     available: list[ModelDescriptor] = []
@@ -93,7 +93,7 @@ def select_model(
         available.append(m)
 
     if not available:
-        return _fallback(backends, effective_scope)
+        return _fallback(backends, effective_scope, task_class)
 
     pref = profile_pref
     if pref == "balanced" and complexity > 0.65:
@@ -140,12 +140,12 @@ def select_model(
         chosen = _pick(available)
 
     if chosen is None:
-        return _fallback(backends, effective_scope)
+        return _fallback(backends, effective_scope, task_class)
 
     return (chosen.backend, chosen.id, prefer_loaded)
 
 
-def _fallback(backends: dict[str, Backend], scope: str) -> tuple[str, str, bool]:
+def _fallback(backends: dict[str, Backend], scope: str, task_class: str = "unknown") -> tuple[str, str, bool]:
     for b in backends.values():
         if not _scope_allows(b, scope):
             continue
@@ -153,5 +153,4 @@ def _fallback(backends: dict[str, Backend], scope: str) -> tuple[str, str, bool]
         if models:
             log.error("select_model fallback — using first available '%s' on '%s'", models[0], b.name())
             return (b.name(), models[0], False)
-    log.error("select_model fallback — no backends available for scope '%s'", scope)
-    return ("", "", False)
+    raise NoModelAvailable(task_class, scope)
