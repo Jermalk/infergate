@@ -254,6 +254,17 @@ Keep hard rules defined with user here.
 
 ---
 
+## Versioning
+
+Strict semver from v0.2.0 onward:
+- **MINOR** bump (0.x.0) — new backward-compatible API (new fields, new methods, new config keys)
+- **PATCH** bump (0.x.y) — bug fixes only, no new public surface
+- **MAJOR** bump (x.0.0) — breaking changes to public API
+
+History at 0.1.x is left as-is. Feedback round files follow the new version in their name (e.g. `round_06_v0.2.0.md`). Never increment PATCH for a release that adds any new public symbol.
+
+---
+
 ## Language policy
 
 

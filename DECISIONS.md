@@ -197,3 +197,15 @@
 **Rejected alternative:** Having `detect_signal()` return the directive and set SIGNAL for everything, as was the original implementation.
 
 **Affects:** `src/infergate/router.py`, `src/infergate/signals.py`, `src/infergate/types.py`.
+
+---
+
+### 2026-05-14 — Adopt proper semantic versioning from v0.2.0
+
+**Decision:** From the next release onward, infergate follows strict semver: new backward-compatible features bump MINOR (0.x.0), bug fixes bump PATCH (0.x.y), breaking API changes bump MAJOR. The 0.1.x history is left as-is.
+
+**Rationale:** All 0.1.x releases used PATCH for new features, which contradicts semver and gives ov_server no meaningful signal about upgrade risk. Proper MINOR bumps communicate "new API, safe to upgrade" vs PATCH "fix only." The ov_server integration is stabilising, making the signal useful now.
+
+**Rejected alternative:** Stay in 0.1.x until 1.0.0 — legal under semver "major zero" rules, but removes the MINOR signal entirely and defers the problem.
+
+**Affects:** Release process; feedback round file naming (e.g. `round_06_v0.2.0.md`).
