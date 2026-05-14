@@ -19,11 +19,12 @@ Modality = Literal["text", "vision", "any"]
 class ModelDescriptor:
     """One model entry in a task class, bound to a named backend."""
 
-    id:        str
-    backend:   str      # must match a registered Backend.name()
-    tier:      Tier     # controls preference order within select_model
-    ctx_limit: int      = 32768
-    modality:  Modality = "text"  # "vision" for VLMs; "any" for multimodal-capable models
+    id:                 str
+    backend:            str      # must match a registered Backend.name()
+    tier:               Tier     # controls preference order within select_model
+    ctx_limit:          int      = 32768
+    modality:           Modality = "text"  # "vision" for VLMs; "any" for multimodal-capable models
+    cost_per_1k_tokens: float | None = None  # USD; None = unknown or free
 
 
 @dataclass
@@ -88,6 +89,7 @@ class RouterConfig:
                     tier=m.get("tier", "fast"),
                     ctx_limit=m.get("ctx_limit", m.get("max_context_tokens", 32768)),
                     modality=m.get("modality", "text"),
+                    cost_per_1k_tokens=m.get("cost_per_1k_tokens"),
                 )
                 for m in tc_raw.get("models", [])
             ]

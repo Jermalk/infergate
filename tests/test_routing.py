@@ -742,3 +742,61 @@ class TestRouterReselect:
         router = Router(basic_config, backends)
         d = router.reselect("general")
         assert d.task_directive is None
+
+
+class TestEstimatedTokens:
+    @pytest.mark.asyncio
+    async def test_tokens_nonzero_for_real_prompt(self, basic_config, local_backend):
+        backends = {"loc": local_backend}
+        router = Router(basic_config, backends)
+        req = InferRequest(messages=[{"role": "user", "content": "word " * 40}])
+        d = await router.decide(req)
+        assert d.estimated_tokens > 0
+
+    @pytest.mark.asyncio
+    async def test_tokens_proportional_to_length(self, basic_config, local_backend):
+        backends = {"loc": local_backend}
+        router = Router(basic_config, backends)
+        short = InferRequest(messages=[{"role": "user", "content": "hi"}])
+        long  = InferRequest(messages=[{"role": "user", "content": "word " * 200}])
+        d_short = await router.decide(short)
+        d_long  = await router.decide(long)
+        assert d_long.estimated_tokens > d_short.estimated_tokens
+
+    @pytest.mark.asyncio
+    async def test_tokens_empty_message_is_zero(self, basic_config, local_backend):
+        backends = {"loc": local_backend}
+        router = Router(basic_config, backends)
+        req = InferRequest(messages=[{"role": "user", "content": ""}])
+        d = await router.decide(req)
+        assert d.estimated_tokens == 0
+
+
+class TestCostField:
+    def test_cost_defaults_to_none(self):
+        from infergate.config import ModelDescriptor
+        m = ModelDescriptor(id="x", backend="b", tier="fast")
+        assert m.cost_per_1k_tokens is None
+
+    def test_cost_roundtrips_through_from_dict(self):
+        cfg = RouterConfig.from_dict({
+            "task_classes": {
+                "general": {
+                    "description": "general",
+                    "models": [{"id": "m", "backend": "b", "tier": "fast",
+                                "cost_per_1k_tokens": 0.002}],
+                }
+            }
+        })
+        assert cfg.task_classes["general"].models[0].cost_per_1k_tokens == 0.002
+
+    def test_cost_absent_in_dict_stays_none(self):
+        cfg = RouterConfig.from_dict({
+            "task_classes": {
+                "general": {
+                    "description": "general",
+                    "models": [{"id": "m", "backend": "b", "tier": "fast"}],
+                }
+            }
+        })
+        assert cfg.task_classes["general"].models[0].cost_per_1k_tokens is None

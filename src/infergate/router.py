@@ -160,6 +160,7 @@ class Router:
             prefer_loaded=prefer_loaded,
             embedding=embedding,
             task_directive=directive,
+            estimated_tokens=total_tokens,
         )
 
     def reselect(
