@@ -68,7 +68,12 @@ def has_cloud_directive(messages: list[dict]) -> bool:
     return bool(_CLOUD_DIRECTIVE_RE.search(last_user_text(messages)))
 
 
-def detect_signal(req: InferRequest, settings: RouterSettings) -> str | None:
+def detect_signal(
+    req: InferRequest,
+    settings: RouterSettings,
+    *,
+    images_present: bool | None = None,
+) -> str | None:
     """Return task_class if a non-directive fast-path signal fires, else None.
 
     Covers signals that carry objective evidence about request type. Hashtag
@@ -77,15 +82,14 @@ def detect_signal(req: InferRequest, settings: RouterSettings) -> str | None:
 
     Priority order:
       1. image content  → "vision"
-      2. client tools   → "web_search"
+      2. client tools   → settings.tools_task_class
       3. long context   → "document"
       4. keyword match  → task_class from settings.keywords
 
-    Token count for long-context detection excludes system messages: they are
-    usually fixed infrastructure text and should not inflate the request size.
-    Token estimate uses the char / 4 heuristic (good enough for routing).
+    images_present may be passed by the caller to avoid a redundant has_images() scan.
+    Token count excludes system messages; uses char/4 heuristic.
     """
-    if has_images(req.messages):
+    if (images_present if images_present is not None else has_images(req.messages)):
         return "vision"
 
     if req.tools:

@@ -87,12 +87,13 @@ class Router:
         # Directive check is separated from detect_signal so we can assign the
         # correct RouteStrategy (KEYWORD vs SIGNAL) without detect_signal needing
         # to know about strategy types.
+        images_present = has_images(request.messages)
         directive = task_class_directive(request.messages, self._task_directive_re)
         if directive:
             task_class: str | None = directive
             strategy: RouteStrategy | None = RouteStrategy.KEYWORD
         else:
-            signal_class = detect_signal(request, settings)
+            signal_class = detect_signal(request, settings, images_present=images_present)
             task_class = signal_class
             strategy = RouteStrategy.SIGNAL if signal_class else None
         confidence = 1.0
@@ -137,7 +138,7 @@ class Router:
             len(text_content(m)) for m in request.messages
         ) // 4
 
-        required_modality = "vision" if has_images(request.messages) else None
+        required_modality = "vision" if images_present else None
         backend_name, model_id, prefer_loaded = select_model(
             task_class=task_class,
             config=self._config,
