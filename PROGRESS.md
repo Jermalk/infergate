@@ -1,11 +1,11 @@
 ## NOW
 
-**Working on:** PyPI publish — 0.1.1 built and ready
-**Last commit:** 4e4ce49 — chore: bump version to 0.1.1
-**Next action:** `twine upload dist/*` (credentials in ~/.pypirc)
+**Working on:** Gap list complete; next logical step is PyPI publish of 0.1.2
+**Last commit:** d69880e — perf: eliminate redundant has_images() scan per request
+**Next action:** Bump version to 0.1.2 in `pyproject.toml` and `__init__.py`, rebuild wheel, `twine upload dist/*`
 **Blocked on:** nothing
 **Open questions:** none
-**Tests:** pass 66/66
+**Tests:** pass 79/79
 
 ---
 
@@ -46,3 +46,12 @@
 **Blocked on:** nothing
 **Open questions:** none
 **Tests:** pass 66/66
+
+### 2026-05-14 — Session 5 (d69880e)
+
+**Working on:** Gap list from ov_server lessons (plans/20260514_infergate_gaps.md) — all 8 gaps closed
+**Last commit:** d69880e — perf: eliminate redundant has_images() scan per request
+**Next action:** Bump version to 0.1.2, rebuild wheel, `twine upload dist/*`
+**Blocked on:** nothing
+**Open questions:** none
+**Tests:** pass 79/79

@@ -108,6 +108,54 @@
 
 ---
 
+### 2026-05-14 — Gap list gaps 2–8 closed; signal_only replaces hardcoded name set
+
+**Decision:** `TaskClassConfig.signal_only: bool` replaces the hardcoded `_SIGNAL_ONLY_CLASSES` frozenset. Any task class that should never appear as an embedding target is marked at config level.
+
+**Rationale:** Hardcoding class names couples the library to deployment-specific naming. Any user who names their VLM class `"image_tasks"` instead of `"vision"` would silently get wrong centroids.
+
+**Rejected alternative:** Keep `_SIGNAL_ONLY_CLASSES` and document that users must match those exact strings.
+
+**Affects:** `src/infergate/config.py`, `src/infergate/embeddings.py`, `src/infergate/signals.py`.
+
+---
+
+### 2026-05-14 — Task-class directives compiled from config keys at Router init
+
+**Decision:** `Router.__init__` compiles `self._task_directive_re` from `config.task_classes.keys()` once at startup. `task_class_directive()` accepts an optional pre-compiled `pattern`; falls back to the hardcoded legacy set when called without one.
+
+**Rationale:** A user who adds a `"sql"` task class should be able to use `#sql` without patching the library. The fallback preserves backward compatibility for code that calls `task_class_directive` directly in tests.
+
+**Rejected alternative:** Keep `_TASK_DIRECTIVE_RE = re.compile(r'#(code|document|general)\b')` and require users to monkey-patch.
+
+**Affects:** `src/infergate/signals.py`, `src/infergate/router.py`.
+
+---
+
+### 2026-05-14 — NoModelAvailable raised instead of empty-string sentinel
+
+**Decision:** `select_model` raises `NoModelAvailable(task_class, scope)` when no backend is reachable. The exception carries `task_class` and `scope` as attributes. The old `return ("", "", False)` path is removed.
+
+**Rationale:** Silent empty-string returns propagate invisibly — callers that forget to check send a request with no model ID. A typed exception forces explicit handling and produces actionable error messages.
+
+**Rejected alternative:** Add an `error: str | None` field to `RouteDecision` (Option B from the gap analysis). Rejected because it couples the router to deployment-specific fallback knowledge.
+
+**Affects:** `src/infergate/types.py`, `src/infergate/selector.py`, `src/infergate/__init__.py`.
+
+---
+
+### 2026-05-14 — Modality field on ModelDescriptor for VLM routing
+
+**Decision:** `ModelDescriptor.modality: Modality = "text"` where `Modality = Literal["text", "vision", "any"]`. `select_model` accepts `required_modality` and filters the candidate pool. Router derives `required_modality="vision"` from `has_images()`.
+
+**Rationale:** Without modality, a loaded LLM can satisfy a vision routing request because the selector sees it as available. ov_server learned this the hard way (separate `loaded_vlm_models` dict).
+
+**Rejected alternative:** Making `Backend.loaded_model_ids()` return `dict[str, Modality]` — breaking change deferred to 0.2.x.
+
+**Affects:** `src/infergate/config.py`, `src/infergate/selector.py`, `src/infergate/router.py`.
+
+---
+
 ### 2026-05-14 — RouteStrategy.KEYWORD separated from SIGNAL
 
 **Decision:** Hashtag directives (`#code`, `#document`, `#general`) produce `RouteStrategy.KEYWORD`, while image detection, tools, long context, and keyword phrase matching produce `RouteStrategy.SIGNAL`. `task_class_directive()` is called by `Router.decide()` before `detect_signal()`.
