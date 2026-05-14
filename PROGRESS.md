@@ -1,11 +1,11 @@
 ## NOW
 
-**Working on:** Feature roadmap — steps 1+5, 4, 2 done; next is step 3 (decide_batch)
-**Last commit:** 4e51b6a — feat: step 2 — embedding LRU cache, RouteTrace.cache_hit, embedding_cache_size (v0.1.7)
-**Next action:** Implement `Router.decide_batch()` in `src/infergate/router.py` (plan: plans/20260514_feature_roadmap.md § Step 3)
+**Working on:** Feature roadmap complete — all 5 steps shipped (v0.1.5–v0.1.8)
+**Last commit:** 11d116a — feat: step 3 — Router.decide_batch() with shared embed_batch() call (v0.1.8)
+**Next action:** On re-entry check `feedback/SIGNAL.md` — if FEEDBACK READY, read the named round file
 **Blocked on:** nothing
 **Open questions:** none
-**Tests:** pass 112/112
+**Tests:** pass 120/120
 
 ---
 
@@ -109,3 +109,12 @@
 **Blocked on:** nothing
 **Open questions:** none
 **Tests:** pass 112/112
+
+### 2026-05-14 — Session 12 (11d116a)
+
+**Working on:** Feature roadmap step 3 — Router.decide_batch() (v0.1.8)
+**Last commit:** 11d116a — feat: step 3 — Router.decide_batch() with shared embed_batch() call (v0.1.8)
+**Next action:** Check feedback/SIGNAL.md on re-entry
+**Blocked on:** nothing
+**Open questions:** none
+**Tests:** pass 120/120
