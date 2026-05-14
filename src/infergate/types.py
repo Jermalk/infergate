@@ -25,6 +25,7 @@ class RouteTrace:
     eliminated:   list[EliminatedCandidate] = field(default_factory=list)
     scope_source: str = ""          # "class_override" | "cloud_directive" | "global"
     embedding_ms: float | None = None  # wall time of embed() call; None on signal/keyword path
+    cache_hit:    bool | None = None  # True/False on embedding path; None when path not taken
 
 
 class NoModelAvailable(Exception):

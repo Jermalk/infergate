@@ -954,3 +954,91 @@ class TestRouteTrace:
         assert d.strategy in (RouteStrategy.EMBEDDING, RouteStrategy.FALLBACK)
         assert d.trace.embedding_ms is not None
         assert d.trace.embedding_ms >= 0.0
+
+
+class TestEmbedCache:
+    @pytest.mark.asyncio
+    async def test_cache_miss_on_first_call(self, basic_config, local_backend, mock_provider):
+        router = Router(basic_config, {"loc": local_backend}, mock_provider)
+        await router.load_embeddings()
+        d = await router.decide(InferRequest(messages=[_user("hello world")]), trace=True)
+        assert d.trace.cache_hit is False
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_on_second_call(self, basic_config, local_backend, mock_provider):
+        router = Router(basic_config, {"loc": local_backend}, mock_provider)
+        await router.load_embeddings()
+        req = InferRequest(messages=[_user("hello world")])
+        await router.decide(req)
+        d = await router.decide(req, trace=True)
+        assert d.trace.cache_hit is True
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_skips_embed_call(self, basic_config, local_backend):
+        embed_calls = []
+
+        class CountingProvider:
+            async def embed(self, text):
+                embed_calls.append(text)
+                import numpy as np
+                return np.random.default_rng(0).standard_normal(4).tolist()
+            async def embed_batch(self, texts):
+                return [await self.embed(t) for t in texts]
+
+        router = Router(basic_config, {"loc": local_backend}, CountingProvider())
+        await router.load_embeddings()
+        req = InferRequest(messages=[_user("unique query xyz")])
+        await router.decide(req)
+        calls_after_first = len(embed_calls)
+        await router.decide(req)
+        assert len(embed_calls) == calls_after_first  # no new embed call
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_none_on_signal_path(self, basic_config, local_backend, mock_provider):
+        router = Router(basic_config, {"loc": local_backend}, mock_provider)
+        await router.load_embeddings()
+        d = await router.decide(InferRequest(messages=[_image_msg()]), trace=True)
+        assert d.trace.cache_hit is None  # signal path, embedding never attempted
+
+    @pytest.mark.asyncio
+    async def test_cache_disabled_when_size_zero(self, local_backend, mock_provider):
+        from infergate.config import RouterSettings
+        cfg = RouterConfig(
+            task_classes=RouterConfig.from_dict({
+                "task_classes": {"general": {"description": "g", "models": [
+                    {"id": "small-llm", "backend": "loc", "tier": "fast"}
+                ]}}
+            }).task_classes,
+            router=RouterSettings(embedding_cache_size=0),
+            provider_scope="local",
+            active_profile="fast",
+            profiles={"fast": {"model_preference": "fastest"}},
+        )
+        router = Router(cfg, {"loc": local_backend}, mock_provider)
+        await router.load_embeddings()
+        req = InferRequest(messages=[_user("hello world")])
+        await router.decide(req)
+        d = await router.decide(req, trace=True)
+        assert d.trace.cache_hit is False  # always miss when disabled
+
+    def test_lru_eviction(self, basic_config, local_backend):
+        from infergate.router import _EmbedCache
+        cache = _EmbedCache(maxsize=2)
+        cache.put("a", ("general", 0.5, None))
+        cache.put("b", ("code",    0.9, None))
+        cache.get("a")           # touch "a" → "b" is now LRU
+        cache.put("c", ("doc",   0.8, None))  # evicts "b"
+        assert cache.get("b") is None
+        assert cache.get("a") is not None
+        assert cache.get("c") is not None
+
+    def test_cache_size_config_field(self):
+        cfg = RouterConfig.from_dict({
+            "task_classes": {},
+            "router": {"embedding_cache_size": 100},
+        })
+        assert cfg.router.embedding_cache_size == 100
+
+    def test_cache_size_default(self):
+        cfg = RouterConfig.from_dict({"task_classes": {}})
+        assert cfg.router.embedding_cache_size == 512

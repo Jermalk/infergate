@@ -4,6 +4,7 @@ Router — public entry point. Wires signal detection, embedding routing, and mo
 import logging
 import re
 import time
+from collections import OrderedDict
 
 import numpy as np
 
@@ -29,6 +30,35 @@ from infergate.types import RouteTrace
 
 log = logging.getLogger("infergate")
 
+_EmbedResult = tuple[str, float, "list[float] | None"]
+
+
+class _EmbedCache:
+    """LRU cache for route_by_embedding() results. Single-threaded / single event loop."""
+
+    def __init__(self, maxsize: int) -> None:
+        self._maxsize = maxsize
+        self._data: OrderedDict[str, _EmbedResult] = OrderedDict()
+
+    def get(self, key: str) -> _EmbedResult | None:
+        if self._maxsize == 0 or key not in self._data:
+            return None
+        self._data.move_to_end(key)
+        return self._data[key]
+
+    def put(self, key: str, value: _EmbedResult) -> None:
+        if self._maxsize == 0:
+            return
+        if key in self._data:
+            self._data.move_to_end(key)
+        else:
+            if len(self._data) >= self._maxsize:
+                self._data.popitem(last=False)
+        self._data[key] = value
+
+    def __len__(self) -> int:
+        return len(self._data)
+
 
 class Router:
     def __init__(
@@ -41,6 +71,7 @@ class Router:
         self._backends = backends
         self._provider = embedding_provider
         self._centroids: dict[str, np.ndarray] = {}
+        self._embed_cache = _EmbedCache(config.router.embedding_cache_size)
         task_names = sorted(config.task_classes.keys())
         self._task_directive_re: re.Pattern | None = re.compile(
             r'#(' + '|'.join(re.escape(k) for k in task_names) + r')\b',
@@ -105,20 +136,28 @@ class Router:
         confidence = 1.0
         embedding: list[float] | None = None
         embedding_ms: float | None = None
+        cache_hit: bool | None = None
 
         # ── Stage 3: embedding classification (slow path) ─────────────────────
         if task_class is None:
             if self._provider and self._centroids:
                 query = last_user_text(request.messages)
-                _t0 = time.perf_counter() if trace else 0.0
-                task_class, confidence, embedding = await route_by_embedding(
-                    query,
-                    self._centroids,
-                    self._provider,
-                    settings.embedding_min_confidence,
-                )
-                if trace:
-                    embedding_ms = (time.perf_counter() - _t0) * 1000
+                cached = self._embed_cache.get(query)
+                if cached is not None:
+                    task_class, confidence, embedding = cached
+                    cache_hit = True
+                else:
+                    _t0 = time.perf_counter() if trace else 0.0
+                    task_class, confidence, embedding = await route_by_embedding(
+                        query,
+                        self._centroids,
+                        self._provider,
+                        settings.embedding_min_confidence,
+                    )
+                    if trace:
+                        embedding_ms = (time.perf_counter() - _t0) * 1000
+                    self._embed_cache.put(query, (task_class, confidence, embedding))
+                    cache_hit = False
                 strategy = (
                     RouteStrategy.EMBEDDING
                     if confidence >= settings.embedding_min_confidence
@@ -169,6 +208,7 @@ class Router:
             eliminated=eliminated,
             scope_source=scope_source,
             embedding_ms=embedding_ms,
+            cache_hit=cache_hit,
         ) if trace else None
 
         return RouteDecision(

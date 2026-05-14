@@ -47,6 +47,7 @@ class RouterSettings:
     keywords:        dict[str, list[str]] = field(default_factory=dict)  # class → trigger phrases
     tools_task_class: str = "web_search"   # task class assigned when req.tools is non-empty
     complexity_promote_fast_threshold: float | None = None  # None = disabled; set to promote fastest → balanced
+    embedding_cache_size:     int   = 512   # LRU cache entries for embedding results; 0 = disabled
 
 
 @dataclass
@@ -78,6 +79,7 @@ class RouterConfig:
             keywords=router_raw.get("keywords", {}),
             tools_task_class=router_raw.get("tools_task_class", "web_search"),
             complexity_promote_fast_threshold=router_raw.get("complexity_promote_fast_threshold"),
+            embedding_cache_size=router_raw.get("embedding_cache_size", 512),
         )
 
         task_classes: dict[str, TaskClassConfig] = {}
