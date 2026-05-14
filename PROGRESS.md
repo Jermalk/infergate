@@ -1,8 +1,8 @@
 ## NOW
 
-**Working on:** Gap list complete; next logical step is PyPI publish of 0.1.2
-**Last commit:** d69880e — perf: eliminate redundant has_images() scan per request
-**Next action:** Bump version to 0.1.2 in `pyproject.toml` and `__init__.py`, rebuild wheel, `twine upload dist/*`
+**Working on:** Feedback loop idle — SIGNAL.md is RELEASE READY; waiting for ov_server round 3
+**Last commit:** adbf675 — feat: round 2 — routing_only property on Backend Protocol, clarify force_tier (v0.1.3)
+**Next action:** On re-entry check `feedback/SIGNAL.md` — if FEEDBACK READY, read the named round file
 **Blocked on:** nothing
 **Open questions:** none
 **Tests:** pass 79/79
@@ -52,6 +52,15 @@
 **Working on:** Gap list from ov_server lessons (plans/20260514_infergate_gaps.md) — all 8 gaps closed
 **Last commit:** d69880e — perf: eliminate redundant has_images() scan per request
 **Next action:** Bump version to 0.1.2, rebuild wheel, `twine upload dist/*`
+**Blocked on:** nothing
+**Open questions:** none
+**Tests:** pass 79/79
+
+### 2026-05-14 — Session 6 (adbf675)
+
+**Working on:** Round 2 ov_server feedback — routing_only on Backend Protocol, force_tier clarification, v0.1.3 PyPI publish
+**Last commit:** adbf675 — feat: round 2 — routing_only property on Backend Protocol, clarify force_tier (v0.1.3)
+**Next action:** Wait for feedback/SIGNAL.md Direction = FEEDBACK READY (round 3)
 **Blocked on:** nothing
 **Open questions:** none
 **Tests:** pass 79/79

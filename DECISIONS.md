@@ -156,6 +156,18 @@
 
 ---
 
+### 2026-05-14 — routing_only property on Backend Protocol (round 2 feedback)
+
+**Decision:** `Backend` Protocol gains `@property def routing_only(self) -> bool: ...`. Concrete backends return `False`; a routing-only adapter (e.g. `OVServerBackend`) returns `True`. No router behaviour changes — the property is informational and self-documenting.
+
+**Rationale:** ov_server deploys infergate as a pure router: `chat()` is never called, so implementing it with `raise NotImplementedError` looked broken to unfamiliar readers. A first-class `routing_only` property declares intent explicitly without adding a subprotocol or config flag.
+
+**Rejected alternative:** `RoutingBackend` subprotocol omitting `chat()` — would require isinstance checks against a second Protocol and complicates the type hierarchy for minor gain.
+
+**Affects:** `src/infergate/protocols.py`, `src/infergate/backends/openai_compat.py`, `src/infergate/backends/ollama.py`, `tests/conftest.py`.
+
+---
+
 ### 2026-05-14 — RouteStrategy.KEYWORD separated from SIGNAL
 
 **Decision:** Hashtag directives (`#code`, `#document`, `#general`) produce `RouteStrategy.KEYWORD`, while image detection, tools, long context, and keyword phrase matching produce `RouteStrategy.SIGNAL`. `task_class_directive()` is called by `Router.decide()` before `detect_signal()`.
