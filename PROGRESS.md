@@ -1,11 +1,11 @@
 ## NOW
 
-**Working on:** Idle — roadmap complete, SIGNAL.md is RELEASE READY v0.1.8, repo on GitHub
-**Last commit:** 128de57 — docs: signal ov_server — RELEASE READY v0.1.8, proactive feature release notes
+**Working on:** Idle — round 5 complete, SIGNAL.md is RELEASE READY v0.1.9, published to PyPI
+**Last commit:** 3e2ce95 — feat: v0.1.9 — cache_stats(), estimated_cost_usd, scope_source Literal (round 5)
 **Next action:** On re-entry check `feedback/SIGNAL.md` — if FEEDBACK READY, read the named round file
 **Blocked on:** nothing
 **Open questions:** none
-**Tests:** pass 120/120
+**Tests:** pass 128/128
 
 ---
 
@@ -127,3 +127,12 @@
 **Blocked on:** nothing
 **Open questions:** none
 **Tests:** pass 120/120
+
+### 2026-05-14 — Session 14 (3e2ce95)
+
+**Working on:** Round 5 ov_server feedback — cache_stats(), estimated_cost_usd, scope_source Literal (v0.1.9)
+**Last commit:** 3e2ce95 — feat: v0.1.9 — cache_stats(), estimated_cost_usd, scope_source Literal (round 5)
+**Next action:** On re-entry check feedback/SIGNAL.md — if FEEDBACK READY, read the named round file
+**Blocked on:** nothing
+**Open questions:** none
+**Tests:** pass 128/128

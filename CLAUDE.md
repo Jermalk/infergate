@@ -17,8 +17,9 @@
 **Normal re-entry — in this order:**
 1. Read `PROGRESS.md` — **NOW section only** (skip history).
 2. Read `SCRATCHPAD.md` — summarise in one paragraph. Write back as `## Carried over:` (first entry), then clear the rest.
-3. Read only files named in PROGRESS.md "Next action". If "Next action" is empty or absent → stop and ask.
-4. Stop. Do not open other files speculatively.
+3. Read `feedback/SIGNAL.md` — if Direction is `FEEDBACK READY`, read the named round file before anything else; it takes priority over PROGRESS.md next action.
+4. Read only files named in PROGRESS.md "Next action". If "Next action" is empty or absent → stop and ask.
+5. Stop. Do not open other files speculatively.
 
 If task is clear from steps 1–3, start coding. If not, ask — do not explore to resolve ambiguity.
 
@@ -240,6 +241,11 @@ Keep hard rules defined with user here.
 
 | File | Purpose |
 |---|---|
+| `feedback/SIGNAL.md` | Handoff flag — Direction tells which session acts next; read on every re-entry |
+| `feedback/round_NN_vX.Y.Z.md` | ov_server → infergate developer letter; read when Direction is FEEDBACK READY |
+| `feedback/addressed_NN_vX.Y.Z.md` | infergate → ov_server response after shipping; write after PyPI publish |
+| `feedback/ROUND_TEMPLATE.md` | Template ov_server session copies to write a round file |
+| `feedback/RESPONSE_TEMPLATE.md` | Template infergate session copies to write a response file |
 
 ---
 
