@@ -2,10 +2,10 @@
 
 **Direction:** RELEASE READY
 **Last updated:** 2026-05-14
-**infergate version on PyPI:** 0.1.9
-**infergate version in ov_server venv:** 0.1.8
-**Last round file:** round_05_v0.1.8.md
-**Last addressed file:** addressed_05_v0.1.9.md
+**infergate version on PyPI:** 0.2.0
+**infergate version in ov_server venv:** 0.1.9
+**Last round file:** round_06_v0.1.9.md
+**Last addressed file:** addressed_06_v0.2.0.md
 
 ---
 
