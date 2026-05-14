@@ -1,11 +1,11 @@
 ## NOW
 
-**Working on:** Feature roadmap — steps 1+5, 4 done; next is step 2 (embedding LRU cache)
-**Last commit:** 628ae16 — feat: step 4 — RouteTrace with elimination reasons, scope_source, embedding_ms (v0.1.6)
-**Next action:** Implement embedding LRU cache in `src/infergate/router.py` + `RouterSettings.embedding_cache_size` in config.py (plan: plans/20260514_feature_roadmap.md § Step 2)
+**Working on:** Feature roadmap — steps 1+5, 4, 2 done; next is step 3 (decide_batch)
+**Last commit:** 4e51b6a — feat: step 2 — embedding LRU cache, RouteTrace.cache_hit, embedding_cache_size (v0.1.7)
+**Next action:** Implement `Router.decide_batch()` in `src/infergate/router.py` (plan: plans/20260514_feature_roadmap.md § Step 3)
 **Blocked on:** nothing
 **Open questions:** none
-**Tests:** pass 104/104
+**Tests:** pass 112/112
 
 ---
 
@@ -100,3 +100,12 @@
 **Blocked on:** nothing
 **Open questions:** none
 **Tests:** pass 104/104
+
+### 2026-05-14 — Session 11 (4e51b6a)
+
+**Working on:** Feature roadmap step 2 — embedding LRU cache (v0.1.7)
+**Last commit:** 4e51b6a — feat: step 2 — embedding LRU cache, RouteTrace.cache_hit, embedding_cache_size (v0.1.7)
+**Next action:** Step 3 — Router.decide_batch() in router.py
+**Blocked on:** nothing
+**Open questions:** none
+**Tests:** pass 112/112
