@@ -48,6 +48,10 @@ class OpenAICompatBackend:
     def is_local(self) -> bool:
         return self._is_local
 
+    @property
+    def routing_only(self) -> bool:
+        return False
+
     def name(self) -> str:
         return self._name
 

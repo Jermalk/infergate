@@ -32,6 +32,10 @@ class OllamaBackend:
     def is_local(self) -> bool:
         return True
 
+    @property
+    def routing_only(self) -> bool:
+        return False
+
     def name(self) -> str:
         return self._name
 

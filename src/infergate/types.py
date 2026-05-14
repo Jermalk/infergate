@@ -27,7 +27,7 @@ class InferRequest:
     max_tokens: int | None        = None
     stream:     bool              = False
     tools:      list[dict] | None = None  # presence triggers tools_task_class signal
-    force_tier: str | None        = None  # override profile preference; skips complexity promotion
+    force_tier: str | None        = None  # programmatic tier override (e.g. admin/assessor); use message directives (#code etc.) for user-initiated routing
 
 
 @dataclass
