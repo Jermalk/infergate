@@ -159,4 +159,43 @@ class Router:
             confidence=confidence,
             prefer_loaded=prefer_loaded,
             embedding=embedding,
+            task_directive=directive,
+        )
+
+    def reselect(
+        self,
+        task_class: str,
+        scope: str = "local",
+        force_tier: str | None = None,
+        complexity: float = 0.0,
+        estimated_tokens: int = 0,
+    ) -> RouteDecision:
+        """Re-run model selection for an already-determined task_class with different constraints.
+
+        Does not re-run signal detection or embedding routing — task_class must be supplied
+        by the caller (typically taken from a prior RouteDecision.task_class).
+
+        Scope values: "local" | "remote" | "local+remote"
+        """
+        profile = self._config.profiles.get(self._config.active_profile, {})
+        profile_pref = profile.get("model_preference", "balanced")
+
+        backend_name, model_id, prefer_loaded = select_model(
+            task_class=task_class,
+            config=self._config,
+            backends=self._backends,
+            effective_scope=scope,
+            profile_pref=profile_pref,
+            complexity=complexity,
+            estimated_tokens=estimated_tokens,
+            force_tier=force_tier,
+        )
+
+        return RouteDecision(
+            backend=backend_name,
+            model_id=model_id,
+            task_class=task_class,
+            strategy=RouteStrategy.RESELECT,
+            confidence=1.0,
+            prefer_loaded=prefer_loaded,
         )

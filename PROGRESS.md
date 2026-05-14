@@ -1,11 +1,11 @@
 ## NOW
 
-**Working on:** Feedback loop idle — SIGNAL.md is RELEASE READY; waiting for ov_server round 3
-**Last commit:** adbf675 — feat: round 2 — routing_only property on Backend Protocol, clarify force_tier (v0.1.3)
+**Working on:** Feedback loop idle — SIGNAL.md is RELEASE READY; waiting for ov_server round 4
+**Last commit:** (this session) — feat: round 3 — Router.reselect(), RouteDecision.task_directive (v0.1.4)
 **Next action:** On re-entry check `feedback/SIGNAL.md` — if FEEDBACK READY, read the named round file
 **Blocked on:** nothing
 **Open questions:** none
-**Tests:** pass 79/79
+**Tests:** pass 87/87
 
 ---
 
@@ -64,3 +64,12 @@
 **Blocked on:** nothing
 **Open questions:** none
 **Tests:** pass 79/79
+
+### 2026-05-14 — Session 7 (TBD)
+
+**Working on:** Round 3 ov_server feedback — Router.reselect(), RouteDecision.task_directive, v0.1.4 PyPI publish
+**Last commit:** TBD — feat: round 3 — Router.reselect(), RouteDecision.task_directive (v0.1.4)
+**Next action:** Wait for feedback/SIGNAL.md Direction = FEEDBACK READY (round 4)
+**Blocked on:** nothing
+**Open questions:** none
+**Tests:** pass 87/87

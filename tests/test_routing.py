@@ -666,3 +666,79 @@ class TestRouterDecide:
         assert d.task_class
         assert d.strategy is not None
         assert isinstance(d.confidence, float)
+
+
+class TestTaskDirectiveField:
+    @pytest.mark.asyncio
+    async def test_directive_present_sets_field(self, basic_config, local_backend, mock_provider):
+        backends = {"loc": local_backend}
+        router = Router(basic_config, backends, mock_provider)
+        await router.load_embeddings()
+
+        req = InferRequest(messages=[_user("fix this #code")])
+        d = await router.decide(req)
+        assert d.task_directive == "code"
+
+    @pytest.mark.asyncio
+    async def test_no_directive_is_none(self, basic_config, local_backend, mock_provider):
+        backends = {"loc": local_backend}
+        router = Router(basic_config, backends, mock_provider)
+        await router.load_embeddings()
+
+        req = InferRequest(messages=[_user("hello world")])
+        d = await router.decide(req)
+        assert d.task_directive is None
+
+    @pytest.mark.asyncio
+    async def test_signal_route_has_no_directive(self, basic_config, local_backend, mock_provider):
+        backends = {"loc": local_backend}
+        router = Router(basic_config, backends, mock_provider)
+        await router.load_embeddings()
+
+        req = InferRequest(messages=[_image_msg()])
+        d = await router.decide(req)
+        assert d.strategy == RouteStrategy.SIGNAL
+        assert d.task_directive is None
+
+
+class TestRouterReselect:
+    def test_reselect_returns_local_model(self, basic_config, local_backend, remote_backend):
+        backends = {"loc": local_backend, "ovh": remote_backend}
+        router = Router(basic_config, backends)
+        d = router.reselect("code", scope="local")
+        assert d.backend == "loc"
+        assert d.strategy == RouteStrategy.RESELECT
+        assert d.confidence == 1.0
+
+    def test_reselect_remote_scope_picks_remote(self, basic_config, local_backend, remote_backend):
+        backends = {"loc": local_backend, "ovh": remote_backend}
+        router = Router(basic_config, backends)
+        d = router.reselect("code", scope="remote")
+        assert d.backend == "ovh"
+        assert d.strategy == RouteStrategy.RESELECT
+
+    def test_reselect_force_tier_best(self, basic_config, local_backend, remote_backend):
+        backends = {"loc": local_backend, "ovh": remote_backend}
+        router = Router(basic_config, backends)
+        d = router.reselect("code", scope="local", force_tier="best")
+        assert d.model_id == "big-llm"
+
+    def test_reselect_local_plus_remote_scope(self, basic_config, local_backend, remote_backend):
+        backends = {"loc": local_backend, "ovh": remote_backend}
+        cfg = RouterConfig(
+            task_classes=basic_config.task_classes,
+            router=basic_config.router,
+            provider_scope="local",
+            active_profile="best",
+            profiles={"best": {"model_preference": "best"}},
+        )
+        router = Router(cfg, backends)
+        d = router.reselect("code", scope="local+remote", force_tier="best")
+        assert d.strategy == RouteStrategy.RESELECT
+        assert d.backend in ("loc", "ovh")
+
+    def test_reselect_task_directive_not_set(self, basic_config, local_backend):
+        backends = {"loc": local_backend}
+        router = Router(basic_config, backends)
+        d = router.reselect("general")
+        assert d.task_directive is None

@@ -7,7 +7,7 @@ from infergate.config import RouterConfig
 from infergate.protocols import Backend
 from infergate.protocols import EmbeddingProvider
 
-__version__ = "0.1.3"
+__version__ = "0.1.4"
 __all__ = [
     "Router",
     "InferRequest", "RouteDecision", "RouteStrategy", "NoModelAvailable",
