@@ -1,11 +1,11 @@
 ## NOW
 
-**Working on:** Feedback loop idle — SIGNAL.md is RELEASE READY; integration milestone reached
-**Last commit:** 2c27ccb — docs: session wrap — round 4 confirmation, integration complete
-**Next action:** On re-entry check `feedback/SIGNAL.md` — if FEEDBACK READY, read the named round file
+**Working on:** Feature roadmap — step 1+5 done; next is step 4 (RouteTrace)
+**Last commit:** d84111c — feat: step 1+5 — RouteDecision.estimated_tokens, ModelDescriptor.cost_per_1k_tokens (v0.1.5)
+**Next action:** Implement RouteTrace in `src/infergate/types.py` and `src/infergate/router.py` (plan: plans/20260514_feature_roadmap.md § Step 4)
 **Blocked on:** nothing
 **Open questions:** none
-**Tests:** pass 87/87
+**Tests:** pass 93/93
 
 ---
 
@@ -82,3 +82,12 @@
 **Blocked on:** nothing
 **Open questions:** none
 **Tests:** pass 87/87
+
+### 2026-05-14 — Session 9 (d84111c)
+
+**Working on:** Feature roadmap step 1+5 — RouteDecision.estimated_tokens + ModelDescriptor.cost_per_1k_tokens (v0.1.5)
+**Last commit:** d84111c — feat: step 1+5 — RouteDecision.estimated_tokens, ModelDescriptor.cost_per_1k_tokens (v0.1.5)
+**Next action:** Step 4 — RouteTrace in types.py + router.py + selector.py
+**Blocked on:** nothing
+**Open questions:** none
+**Tests:** pass 93/93
