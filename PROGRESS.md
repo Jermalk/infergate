@@ -1,7 +1,7 @@
 ## NOW
 
-**Working on:** Feedback loop idle — SIGNAL.md is RELEASE READY; waiting for ov_server round 4
-**Last commit:** 6631ad6 — feat: round 3 — Router.reselect(), RouteDecision.task_directive (v0.1.4)
+**Working on:** Feedback loop idle — SIGNAL.md is RELEASE READY; integration milestone reached
+**Last commit:** (this session) — docs: session wrap — round 4 confirmation, integration complete
 **Next action:** On re-entry check `feedback/SIGNAL.md` — if FEEDBACK READY, read the named round file
 **Blocked on:** nothing
 **Open questions:** none
@@ -70,6 +70,15 @@
 **Working on:** Round 3 ov_server feedback — Router.reselect(), RouteDecision.task_directive, v0.1.4 PyPI publish
 **Last commit:** 6631ad6 — feat: round 3 — Router.reselect(), RouteDecision.task_directive (v0.1.4)
 **Next action:** Wait for feedback/SIGNAL.md Direction = FEEDBACK READY (round 4)
+**Blocked on:** nothing
+**Open questions:** none
+**Tests:** pass 87/87
+
+### 2026-05-14 — Session 8 (TBD)
+
+**Working on:** Round 4 ov_server feedback — confirmation round, no code changes; integration milestone reached
+**Last commit:** TBD — docs: session wrap — round 4 confirmation, integration complete
+**Next action:** Wait for feedback/SIGNAL.md Direction = FEEDBACK READY (round 5)
 **Blocked on:** nothing
 **Open questions:** none
 **Tests:** pass 87/87
