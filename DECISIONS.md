@@ -209,3 +209,15 @@
 **Rejected alternative:** Stay in 0.1.x until 1.0.0 — legal under semver "major zero" rules, but removes the MINOR signal entirely and defers the problem.
 
 **Affects:** Release process; feedback round file naming (e.g. `round_06_v0.2.0.md`).
+
+---
+
+### 2026-05-14 — force_tier on decide() preferred over set_active_profile()
+
+**Decision:** Added `force_tier: str | None = None` keyword argument to `Router.decide()` and `Router.decide_batch()` rather than a `Router.set_active_profile()` mutating method.
+
+**Rationale:** `force_tier` on `decide()` is explicit and composable — the caller passes the active tier per call with no hidden state change on Router. `set_active_profile()` would add mutable runtime state to Router beyond what the config YAML provides, and creates a concurrency risk if profile switches and in-flight requests race.
+
+**Rejected alternative:** `Router.set_active_profile(name: str)` — lower preference per ov_server's own round 6 assessment.
+
+**Affects:** `src/infergate/router.py`.

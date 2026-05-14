@@ -1,11 +1,11 @@
 ## NOW
 
-**Working on:** Idle — round 5 complete, semver policy adopted, v0.1.9 on PyPI, pushed to GitHub
-**Last commit:** 6a2f2e2 — docs: adopt strict semver from v0.2.0
+**Working on:** Idle — round 6 complete, v0.2.0 on PyPI, pushed to GitHub
+**Last commit:** 7780a7f — docs: signal ov_server — RELEASE READY v0.2.0, addressed round 6
 **Next action:** On re-entry check `feedback/SIGNAL.md` — if FEEDBACK READY, read the named round file
 **Blocked on:** nothing
 **Open questions:** none
-**Tests:** pass 128/128
+**Tests:** pass 131/131
 
 ---
 
@@ -136,3 +136,12 @@
 **Blocked on:** nothing
 **Open questions:** none
 **Tests:** pass 128/128
+
+### 2026-05-14 — Session 15 (7780a7f)
+
+**Working on:** Round 6 ov_server feedback — force_tier kwarg on decide() and decide_batch() (v0.2.0)
+**Last commit:** 7780a7f — docs: signal ov_server — RELEASE READY v0.2.0, addressed round 6
+**Next action:** On re-entry check feedback/SIGNAL.md — if FEEDBACK READY, read the named round file
+**Blocked on:** nothing
+**Open questions:** none
+**Tests:** pass 131/131
